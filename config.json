@@ -88,6 +88,22 @@
               "cookie": "TOPDECK_COOKIE_SAT"
             }
           ]
+        },
+        {
+          "id": "messages",
+          "title": "Сообщения",
+          "type": "topdeck_inbox",
+          "members": [
+            {
+              "label": "Sol",
+              "topic": 335343
+            },
+            {
+              "label": "Настя",
+              "topic": 355026,
+              "cookie": "TOPDECK_COOKIE_SAT"
+            }
+          ]
         }
       ]
     },

@@ -345,15 +345,21 @@ def sheet_table(card, tz):
 TOPDECK = "https://topdeck.ru"
 
 
+_TD_PAGES = {}
+
+
 def topdeck_get(path, secret="TOPDECK_COOKIE"):
-    """Страница TopDeck под входом: cookie из секрета (у каждого аккаунта свой)."""
+    """Страница TopDeck под входом: cookie из секрета (у каждого аккаунта свой). За запуск каждая страница качается один раз."""
+    if (path, secret) in _TD_PAGES:
+        return _TD_PAGES[(path, secret)]
     ck = os.environ.get(secret)
     if not ck:
         seen = ", ".join(f"{k}{'' if os.environ[k] else ' (пустой)'}" for k in sorted(os.environ) if k.startswith("TOPDECK"))
         raise RuntimeError(f"нет секрета {secret} (сборка видит: {seen or 'ничего'})")
     req = Request(TOPDECK + path, headers={"User-Agent": UA, "Cookie": ck})
     with urlopen(req, timeout=60) as r:
-        return r.read().decode("utf-8", "replace")
+        _TD_PAGES[(path, secret)] = r.read().decode("utf-8", "replace")
+    return _TD_PAGES[(path, secret)]
 
 
 def topdeck_trades(card, tz):
@@ -362,9 +368,17 @@ def topdeck_trades(card, tz):
     for m in card.get("members", []):
         it = {"label": m["label"], "url": TOPDECK + (f"/forums/topic/{m['topic']}/" if m.get("topic") else f"/apps/toptrade/member/{m['id']}")
               if m.get("id") else None}
-        if m.get("topic"):  # дата обновления из названия темы: «… обновление 2610» → 26.10
+        if m.get("topic"):  # дата обновления из названия темы («… обновление 2610» → 26.10) и можно ли её поднять
             try:
-                title = unescape((re.search(r"(?is)<title>(.*?)</title>", topdeck_get(f"/forums/topic/{m['topic']}/", m.get("cookie", "TOPDECK_COOKIE"))) or [""])[1])
+                page = topdeck_get(f"/forums/topic/{m['topic']}/", m.get("cookie", "TOPDECK_COOKIE"))
+                bump = re.search(r"(?is)data-controller='plugins\.tb\.BumpUpTopics'>(.*?)</li>", page)
+                if bump:  # «Поднять эту тему»: неактивна (elBumpDisabled) — ещё рано, иначе — можно
+                    off = "elBumpDisabled" in bump.group(1) or "ipsButton_disabled" in bump.group(1)
+                    it["bump"] = "wait" if off else "can"
+                    tip = re.search(r"title='([^']*)'", bump.group(1))
+                    if tip:
+                        it["bump_tip"] = unescape(tip.group(1)).strip()
+                title = unescape((re.search(r"(?is)<title>(.*?)</title>", page) or [""])[1])
                 d = re.search(r"(?i)обновлени\w*\s*(\d{1,2})[.\s/-]?(\d{2})\b", title)
                 if d:
                     it["date"] = f"{int(d.group(1)):02d}.{d.group(2)}"
@@ -390,6 +404,30 @@ def topdeck_trades(card, tz):
         lines.append(f"{m['label']} — {dict(shown='видна', hidden='скрыта', stub='—', error='нет данных')[it['state']]}")
     if fails and fails == sum(1 for m in card.get("members", []) if m.get("id")):
         raise RuntimeError("не удалось получить статус ни одной темы")
+    return {"lines": lines, "items": items}
+
+
+def topdeck_inbox(card, tz):
+    """Непрочитанные личные сообщения: счётчик у конверта в шапке форума (берём страницу темы — она уже скачана для торговых тем).
+    Текст переписки не читаем, только число."""
+    items, lines, fails = [], [], 0
+    for m in card.get("members", []):
+        it = {"label": m["label"], "url": TOPDECK + "/messenger/"}
+        try:
+            html = topdeck_get(f"/forums/topic/{m['topic']}/" if m.get("topic") else "/", m.get("cookie", "TOPDECK_COOKIE"))
+            n = re.search(r"data-notificationType='inbox'[^>]*?(?:data-currentCount='(\d+)'[^>]*)?>\s*(\d+)", html)
+            if not n:
+                raise RuntimeError(f"счётчика сообщений нет — вход не сработал, обнови {m.get('cookie', 'TOPDECK_COOKIE')}")
+            cnt = int(n.group(1) or n.group(2))
+            it.update(state="hidden" if cnt else "shown", info="Не прочитано" if cnt else "Прочитано", count=cnt)
+        except Exception as e:
+            fails += 1
+            print(f"::warning::topdeck сообщения {m['label']}: {e}")
+            it["state"] = "error"
+        items.append(it)
+        lines.append(f"{m['label']} — {it.get('info', 'нет данных')}")
+    if fails and fails == len(card.get("members", [])):
+        raise RuntimeError("не удалось проверить сообщения ни одного участника")
     return {"lines": lines, "items": items}
 
 
@@ -439,6 +477,7 @@ HANDLERS = {
     "sheet_table": sheet_table,
     "topdeck_trades": topdeck_trades,
     "topdeck_aucs": topdeck_aucs,
+    "topdeck_inbox": topdeck_inbox,
     "mtg_roadmap": mtg_roadmap,
     "mtg_bans": mtg_bans,
 }

@@ -70,6 +70,11 @@ main {
 /* чёрная обводка букв; давно не обновлённая тема — буквы красные */
 .mx .shown, .mx .hidden { text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 2px #000; }
 .mx .old { color: var(--down); }
+.mx .split { display: flex; padding: 0; }
+.mx .split .l { flex: 1; min-width: 0; padding: 5px 2px; overflow: hidden; text-overflow: ellipsis; }
+.mx .split .r { flex: none; width: 2.2em; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--gold); }
+.mx .r.can { background: linear-gradient(180deg, #ff7b88, #e0414f); color: #fff; }
+.mx .r.wait { background: linear-gradient(180deg, #04b9d4, #177ad2); color: var(--gold); }
 .mx .stub { color: var(--muted); border-color: var(--line); background: #ffffff08; }
 .mx .error { color: var(--warn); border-color: #ffb45466; background: #ffb4540f; }
 .card[data-id="people"] h2 .ico { margin-left: .45em; }
@@ -573,6 +578,7 @@ function buttonsEl(item) {
 const TIPS = {
   auctions: { shown: "идут аукционы", stub: "аукционов нет", error: "данные не получены" },
   trades: { shown: "тема видна", hidden: "тема скрыта", stub: "пока нет", error: "статус не получен" },
+  messages: { shown: "всё прочитано", hidden: "есть непрочитанные", error: "данные не получены" },
 };
 function matrixEl(c) {
   const box = el("div", "sub"), mx = el("div", "mx");
@@ -583,9 +589,17 @@ function matrixEl(c) {
   for (const s of c.sections) {
     mx.append(el("span", "mk", s.title));
     (s.items || []).forEach(it => {
-      const x = el(it.url ? "a" : "span", "sb " + it.state, it.date || it.info || "—");  // «26.10», «5 · 22ч»
-      if (it.date && daysSince(it.date) > STALE_DAYS) x.classList.add("old");
-      x.title = (TIPS[s.id] || {})[it.state] || "";
+      const x = el(it.url ? "a" : "span", "sb " + it.state);
+      const l = el("span", "l", it.date || it.info || "—");  // «26.10», «5 до 02.11 20:00»
+      if (it.date && daysSince(it.date) > STALE_DAYS) l.classList.add("old");
+      x.append(l);
+      x.title = ((TIPS[s.id] || {})[it.state] || "") + (it.count ? ": " + it.count : "");
+      if (it.bump) {  // справа звезда «Поднять»: красная — можно, синяя — ещё рано
+        x.classList.add("split");
+        const r = el("span", "r " + it.bump, "★");
+        r.title = it.bump === "can" ? "тему можно поднять" : (it.bump_tip || "поднимать пока рано");
+        x.append(r);
+      }
       if (it.url) { x.href = it.url; x.target = "_blank"; x.rel = "noopener"; }
       mx.append(x);
     });
@@ -703,7 +717,8 @@ function showHits(cards) {
   const out = [];
   const walk = n => {
     if (n.sections) { n.sections.forEach(walk); return; }
-    const hit = (n.lines || []).some(l => { DATE_RE.lastIndex = 0; let m; while ((m = DATE_RE.exec(l))) if (isToday(m)) return true; return false; });
+    const hit = (n.lines || []).some(l => { DATE_RE.lastIndex = 0; let m; while ((m = DATE_RE.exec(l))) if (isToday(m)) return true; return false; })
+      || (n.items || []).some(it => { const m = (it.info || "").match(/до (\d{2})\.(\d{2})/); return m && +m[1] === TODAY.d && +m[2] === TODAY.m; });  // аукцион кончается сегодня
     if (hit && !out.includes(n.title)) out.push(n.title);
   };
   cards.forEach(walk);
