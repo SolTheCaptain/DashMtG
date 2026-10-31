@@ -1,0 +1,29 @@
+name: Проба листов (временно)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проба
+        env:
+          USERS_CSV_URL: ${{ secrets.USERS_CSV_URL }}
+          SALES_URL: ${{ secrets.SALES_URL }}
+        run: |
+          python3 - <<'PY'
+          import os, csv, io
+          from urllib.request import Request, urlopen
+          for sec in ("USERS_CSV_URL", "SALES_URL"):
+              with urlopen(Request(os.environ[sec], headers={"User-Agent": "Mozilla/5.0"}), timeout=180) as r:
+                  rows = list(csv.reader(io.StringIO(r.read().decode("utf-8-sig"))))
+              width = max(len(r) for r in rows)
+              head = rows[0] if rows else []
+              pu = [(head[j] if j < len(head) else "") for j in range(15, 21)]
+              found = [(i + 1, j, c) for i, r in enumerate(rows[:5]) for j, c in enumerate(r) if c.strip() in ("Почта", "Яндекс", "ОЗОН", "Единорог", "Берлога", "Минск")]
+              print(f"::warning::{sec}: строк {len(rows)}, столбцов {width}, строка1 P..U = {pu}, найдено: {found}")
+          PY
