@@ -53,9 +53,102 @@
     {
       "id": "sales",
       "title": "Sales",
-      "type": "static",
-      "lines": [
-        "Скоро."
+      "type": "group",
+      "sections": [
+        {
+          "id": "extras",
+          "title": "Extras",
+          "type": "sheet_table",
+          "secret": "SALES_URL",
+          "anchor": "Extras",
+          "cols": [
+            1,
+            2
+          ],
+          "head": [
+            "",
+            "Left",
+            "Sold"
+          ]
+        },
+        {
+          "id": "checks",
+          "title": "Checks",
+          "type": "sheet_table",
+          "secret": "SALES_URL",
+          "anchor": "Checks",
+          "cols": [
+            1,
+            2
+          ],
+          "head": [
+            "",
+            "Left",
+            "Sold"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "top",
+      "title": "Топ продаж",
+      "type": "group",
+      "sections": [
+        {
+          "id": "top-prints",
+          "title": "Артикул",
+          "type": "sheet_table",
+          "secret": "SALES_URL",
+          "anchor": "Top Sellers",
+          "nth": 0,
+          "cols": [
+            1
+          ],
+          "head": [
+            "",
+            "Sold"
+          ],
+          "export": [
+            {
+              "label": "Выгрузить все",
+              "col": 1
+            }
+          ]
+        },
+        {
+          "id": "top-cards",
+          "title": "Номенклатура",
+          "type": "sheet_table",
+          "secret": "SALES_URL",
+          "anchor": "Top Sellers",
+          "nth": 1,
+          "cols": [
+            1,
+            2
+          ],
+          "head": [
+            "",
+            "Sold",
+            "Left"
+          ],
+          "zones": {
+            "col": 2,
+            "lo": 4,
+            "hi": 8
+          },
+          "export": [
+            {
+              "label": "Выгрузить красные",
+              "col": 2,
+              "zone": "bad"
+            },
+            {
+              "label": "Выгрузить жёлтые",
+              "col": 2,
+              "zone": "mid"
+            }
+          ]
+        }
       ]
     },
     {

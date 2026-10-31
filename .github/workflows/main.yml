@@ -32,6 +32,7 @@ jobs:
         env:
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
           USERS_CSV_URL: ${{ secrets.USERS_CSV_URL }}
+          SALES_URL: ${{ secrets.SALES_URL }}
           USERS_SHEET_URL: ${{ secrets.USERS_SHEET_URL }}
           PAY_SOL: ${{ secrets.PAY_SOL }}
           PAY_NASTYA: ${{ secrets.PAY_NASTYA }}

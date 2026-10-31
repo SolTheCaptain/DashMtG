@@ -48,20 +48,22 @@ button:hover { background: #f2c14e24; }
 
 main {
   flex: 1; min-height: 0; display: grid; gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
   grid-template-rows: repeat(12, minmax(0, 1fr));
 }
 .card[data-id="quotes"] { grid-column: 1; grid-row: 1 / span 6; width: 89%; }
 .card[data-id="sales"] { grid-column: 1; grid-row: 7 / -1; width: 89%; }
+.card[data-id="sales"] > .subs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 /* «Люди»: «Платежи» (5 человек + кнопки) чуть выше «Срочных заказов» */
 .card[data-id="people"] { grid-column: 2; grid-row: 1 / -1; width: 89%; }
 .card[data-id="people"] h2 .ico { margin-left: .45em; }
 .card[data-id="people"] > .subs { grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); }
 
-/* угол справа внизу: карточки по размеру текста, стопкой снизу вверх */
-.dock { grid-column: 3; grid-row: 1 / -1; min-height: 0; justify-self: end; width: max-content; max-width: 100%;
-  display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
-.dock > .card { flex: 0 1 auto; }
+/* третья колонка: Top Sellers сверху на всё свободное место, Сеты и Баны — по размеру текста в правом нижнем углу */
+.dock { grid-column: 3; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.dock > .card { flex: 0 1 auto; max-width: 100%; }
+.dock > .card[data-id="top"] { flex: 1 1 0; align-self: stretch; }
+.card[data-id="top"] > .subs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 
 .card {
   display: flex; flex-direction: column; min-height: 0;
@@ -138,14 +140,16 @@ pre .cut { font-size: 11px; }
 .pays .pd { grid-column: 1 / -1; color: var(--muted); font-size: .85em; line-height: 1.35; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
 .cp { font: inherit; color: var(--gold-soft); background: #f2c14e0d; border: 1px solid #f2c14e44; border-radius: 6px;
   padding: 0 6px; cursor: copy; text-align: left; letter-spacing: normal; text-transform: none; }
-.cprow { flex: none; display: flex; gap: 8px; margin-bottom: 8px; }
+.cprow { flex: none; display: flex; gap: 8px; margin: 4px 0 8px; }
+.cprow.bottom { margin: 8px 0 0; }
+.cprow.bottom .cp { white-space: nowrap; letter-spacing: 0; padding: 4px 4px; font-size: clamp(11.5px, .78vw, 14px); }
 .cprow .cp { flex: 1; text-align: center; padding: 4px 8px; font: 700 clamp(12.5px, .85vw, 15px) system-ui, sans-serif; letter-spacing: .04em; }
 .cp:hover { color: var(--gold); background: #f2c14e1f; border-color: #f2c14e88; }
 .cp.ok { color: var(--bg); background: var(--gold); border-color: var(--gold); }
 .cp.err { color: var(--down); border-color: #ff8f9d66; }
 .pays .pd:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 
-.items { list-style: none; margin: 0; padding: 0;
+.items { list-style: none; margin: 4px 0 0; padding: 0;
   font: clamp(13.5px, .9vw, 17px)/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
 .items li { padding: 6px 0; border-bottom: 1px solid var(--line); font-weight: 700; }
 .items li:first-child { padding-top: 0; }
@@ -161,6 +165,15 @@ pre .cut { font-size: 11px; }
 .login .rem input { accent-color: var(--gold); }
 .login button { align-self: flex-start; padding: 6px 18px; }
 .login .lmsg { min-height: 1.2em; color: var(--down); font-size: 13px; }
+
+.tbl { display: grid; column-gap: 10px;
+  font: clamp(12.5px, .85vw, 16px)/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+.tbl > span { padding: 1px 0; border-bottom: 1px solid #3a2c6066; }
+.tbl .tn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbl .tv { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl .th { position: sticky; top: 0; z-index: 1; background: #261d44; color: var(--muted); font-size: .8em; letter-spacing: .06em; text-transform: uppercase; border-bottom-color: var(--line); }
+.tbl .r1 { padding-top: 5px; }
+.tbl .ok { color: var(--up); } .tbl .mid { color: var(--warn); } .tbl .bad { color: var(--down); }
 
 .warn {
   display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 999px;
@@ -192,6 +205,7 @@ pre .cut { font-size: 11px; }
   h3, h3.has-ico { margin-bottom: 4px; }
   .pays { font-size: 12.5px; line-height: 1.35; }
   .pays .pd { margin-bottom: 3px; padding-bottom: 3px; }
+  .tbl { font-size: 12px; line-height: 1.32; }
 }
 
 @media (max-width: 999px) {
@@ -220,7 +234,7 @@ const root = document.getElementById("cards");
 const stamp = document.getElementById("stamp");
 const reloadBtn = document.getElementById("reload");
 // стопки карточек: id карточки → класс контейнера
-const STACKS = { sets: "dock", bans: "dock" };
+const STACKS = { top: "dock", sets: "dock", bans: "dock" };
 const LISTS = ["order"];  // блоки-списки: каждая строка отдельным пунктом
 
 // Значки у заголовков блоков и подблоков (по id)
@@ -419,6 +433,18 @@ function bodyEl(item) {
       g.append(el("span", "pn", r.name), v, noteEl(r));
     }
     b.append(g);
+  } else if (item.table && item.table.rows && item.table.rows.length) {  // таблица из листа: название и числа
+    const t = el("div", "tbl");
+    t.style.gridTemplateColumns = "minmax(0, 1fr)" + " max-content".repeat(item.table.head.length - 1);
+    for (const h of item.table.head) t.append(el("span", "th" + (h ? " tv" : ""), h));
+    item.table.rows.forEach((r, n) => r.forEach((x, i) => {
+      const c = el("span", (i ? "tv" : "tn") + (n ? "" : " r1"), x);
+      const z = item.table.zones;
+      if (z && i === z.col) { const k = zoneOf(z, x); if (k) c.classList.add(k); }
+      if (!i) c.title = x;   // полное название при наведении
+      t.append(c);
+    }));
+    b.append(t);
   } else if (LISTS.includes(item.id) && item.lines && item.lines.length) {
     const ul = el("ul", "items");
     for (const l of item.lines) ul.append(el("li", "", l));
@@ -435,9 +461,9 @@ function bodyEl(item) {
 // Реквизит одной кнопкой: клик копирует готовую фразу для клиента
 function copyBtn(label, value) {
   const b = el("button", "cp", label);
-  b.type = "button"; b.title = "Скопировать: " + value;
+  b.type = "button"; if (typeof value === "string") b.title = "Скопировать: " + value;
   b.onclick = async () => {
-    try { await navigator.clipboard.writeText(value); b.classList.add("ok"); }
+    try { await navigator.clipboard.writeText(typeof value === "function" ? value() : value); b.classList.add("ok"); }
     catch (e) { b.classList.add("err"); }
     setTimeout(() => b.classList.remove("ok", "err"), 900);
   };
@@ -448,6 +474,19 @@ function noteEl(r) {
   const note = (r.note || "").replace(/\s+/g, " ").trim();
   if (note) box.append(copyBtn(note, "денежку можно кидать на карту по номеру " + note + ", " + r.name));
   return box;
+}
+
+// Цвет числа по порогам: больше hi — зелёный (ok), от lo до hi — жёлтый (mid), меньше lo — красный (bad)
+function zoneOf(z, x) {
+  if (x === "" || isNaN(+x)) return "";
+  return +x > z.hi ? "ok" : +x >= z.lo ? "mid" : "bad";
+}
+// Кнопки выгрузки под таблицей: копируют строки «название — число» (все или только нужного цвета)
+function exportEl(t) {
+  const row = el("div", "cprow bottom");
+  for (const e of t.export) row.append(copyBtn(e.label, () =>
+    t.rows.filter(r => !e.zone || zoneOf(t.zones, r[e.col]) === e.zone).map(r => r[0] + " — " + r[e.col]).join("\n")));
+  return row;
 }
 
 // Кнопки во всю ширину под заголовком блока: клик копирует заданный текст (buttons в config.json)
@@ -468,6 +507,7 @@ function subEl(s) {
   } else {
     if (s.buttons && s.buttons.length) sub.append(buttonsEl(s));  // кнопки сразу под заголовком
     sub.append(bodyEl(s));
+    if (s.table && s.table.export && s.table.rows && s.table.rows.length) sub.append(exportEl(s.table));
   }
   return sub;
 }

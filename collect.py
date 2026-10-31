@@ -287,10 +287,35 @@ def sheet_list(card, tz):
     return [c for c in cells if c] or ["Пусто."]
 
 
-# ---------- текст из config.json (заготовка блока) ----------
-
-def static(card, tz):
-    return card.get("lines") or ["Скоро."]
+def sheet_table(card, tz):
+    """Таблица-блок листа: ищем ячейку с текстом `anchor` (шапка блока) и берём под ней строки
+    по столбцам anchor-столбец + `cols` (смещения вправо), пока не кончатся названия."""
+    rows = sheet_rows(card)
+    anchor = card["anchor"].strip().lower()
+    first = int(card.get("cols", [1, 2])[0])
+    cell = lambda i, j: (rows[i][j] if j < len(rows[i]) else "").strip()
+    # шапка блока — ячейка с anchor, у которой справа подпись столбца (одиночные метки вроде «Checks» в углу пропускаем)
+    hits = [(i, j) for i, r in enumerate(rows) for j, c in enumerate(r)
+            if c.strip().lower() == anchor and cell(i, j + first)]
+    n = int(card.get("nth", 0))  # если шапок с таким текстом несколько — какая по счёту (слева направо, с 0)
+    at = hits[n] if n < len(hits) else None
+    if not at:
+        raise RuntimeError(f"в листе нет ячейки «{card['anchor']}»")
+    i0, j0 = at
+    offs = [0] + [int(x) for x in card.get("cols", [1, 2])]
+    out = []
+    for r in rows[i0 + 1:]:
+        cells = [re.sub(r"\s+", " ", r[j0 + k] if j0 + k < len(r) else "").strip() for k in offs]
+        if not cells[0]:
+            break
+        out.append(cells)
+    head = card.get("head") or ["", "", ""]
+    lines = [" · ".join(x) for x in out] or ["Пусто."]
+    table = {"head": head, "rows": out}
+    for k in ("zones", "export"):  # подкраска столбца и кнопки выгрузки — их отрабатывает страница
+        if card.get(k):
+            table[k] = card[k]
+    return {"lines": lines, "table": table}
 
 
 # ---------- реестр типов блоков ----------
@@ -299,7 +324,7 @@ HANDLERS = {
     "quotes": quotes,
     "sheet_payments": sheet_payments,
     "sheet_list": sheet_list,
-    "static": static,
+    "sheet_table": sheet_table,
     "mtg_roadmap": mtg_roadmap,
     "mtg_bans": mtg_bans,
 }
@@ -400,7 +425,7 @@ def run_section(sec, tz, prev):
             raise RuntimeError(f"неизвестный тип блока: {sec.get('type')}")
         res = fn(sec, tz)
         if isinstance(res, dict):
-            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"))
+            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"), table=res.get("table"))
         else:
             out.update(ok=True, lines=res)
         out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -409,7 +434,7 @@ def run_section(sec, tz, prev):
     except Exception as e:
         print(f"::warning::{sec['id']}: {e}")
         out.update(ok=False, error=str(e), lines=(prev or {}).get("lines") or [])
-        for k in ("charts", "rows"):
+        for k in ("charts", "rows", "table"):
             if (prev or {}).get(k):
                 out[k] = prev[k]
     return out
