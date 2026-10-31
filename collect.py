@@ -183,43 +183,69 @@ def intraday(code, tz, step=15):
     return [{"t": t.isoformat(timespec="minutes"), "v": round(v, nd)} for _, (t, v) in sorted(buckets.items())]
 
 
+def market_daily(code, days, tz):
+    """Рыночный курс по дням (закрытие дня) из Yahoo Finance: [{d, v}] за последние days+1 дней."""
+    j = http_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(YAHOO[code])}?range=1mo&interval=1d")
+    r = ((j.get("chart") or {}).get("result") or [{}])[0]
+    closes = (((r.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []
+    by_day = {}
+    for ts, v in zip(r.get("timestamp") or [], closes):
+        if v:
+            by_day[datetime.fromtimestamp(ts, tz).date()] = v
+    return [{"d": d.isoformat(), "v": round(v, 4)} for d, v in sorted(by_day.items())][-(days + 1):]
+
+
 def quotes(card, tz):
-    """Курсы ЦБ к рублю и BTC к доллару.
-    Графики по каждой паре: неделя (ЦБ, CoinGecko по дням) и сутки (рыночный курс каждые 15 минут)."""
-    cbr = http_json("https://www.cbr-xml-daily.ru/daily_json.js")
-    lines = []
-    for code in card.get("fiat", ["USD", "EUR"]):
-        v = cbr["Valute"][code]
-        lines.append(f"{code}/RUR — {num(v['Value'] / v['Nominal'])}")
-    try:
-        btc = http_json("https://api.coingecko.com/api/v3/simple/price"
-                        "?ids=bitcoin&vs_currencies=usd")["bitcoin"]
-        lines.append(f"BTC/USD — {num(btc['usd'], 0)}")
-    except Exception as e:
-        print(f"::warning::quotes BTC: {e}")
-        lines.append("BTC/USD — нет данных")
-    ch = card.get("chart")
-    if not ch:
-        return lines
-    days = int(ch.get("days", 7))
+    """Рыночные курсы USD и EUR к рублю и BTC к доллару — как в Google (Yahoo Finance, BTC — CoinGecko).
+    Графики по каждой паре: неделя (закрытие дня) и сутки (каждые 15 минут).
+    Если рыночный источник не ответил: курс ЦБ (BTC — CoinGecko)."""
+    ch = card.get("chart") or {}
+    days, step = int(ch.get("days", 7)), int(ch.get("step", 15))
+    fiat = card.get("fiat", ["USD", "EUR"])
     charts = {}  # сбой одного графика остальное не ломает
-    for code in ch.get("codes", ["USD", "EUR", "BTC"]):
+    for code in ch.get("codes", fiat + ["BTC"]):
         pair, cur = f"{code}/{'USD' if code == 'BTC' else 'RUR'}", "$" if code == "BTC" else "₽"
         got = {}
-        try:
-            pts = btc_history(days, tz) if code == "BTC" else cbr_history(code, days, tz)
+        for rng, fn, title in (
+                ("week", lambda: btc_history(days, tz) if code == "BTC" else market_daily(code, days, tz), f"{days} дн."),
+                ("day", lambda: intraday(code, tz, step), "сутки")):
+            try:
+                pts = fn()
+            except Exception as e:
+                print(f"::warning::quotes {rng} {code}: {e}")
+                pts = []
+            if rng == "week" and len(pts) < 2 and code != "BTC":
+                try:  # запасной вариант недели — курс ЦБ
+                    pts = cbr_history(code, days, tz)
+                except Exception as e:
+                    print(f"::warning::quotes week {code} (ЦБ): {e}")
             if len(pts) >= 2:
-                got["week"] = {"title": f"{pair} · {days} дн.", "points": pts, "cur": cur}
-        except Exception as e:
-            print(f"::warning::quotes week {code}: {e}")
-        try:
-            pts = intraday(code, tz, int(ch.get("step", 15)))
-            if len(pts) >= 2:
-                got["day"] = {"title": f"{pair} · сутки", "points": pts, "cur": cur}
-        except Exception as e:
-            print(f"::warning::quotes day {code}: {e}")
+                got[rng] = {"title": f"{pair} · {title}", "points": pts, "cur": cur}
         if got:
             charts[code] = got
+
+    def now_rate(code):  # текущий курс = последняя точка суточного графика
+        p = (charts.get(code, {}).get("day") or {}).get("points") or []
+        return p[-1]["v"] if p else None
+
+    lines, cbr = [], None
+    for code in fiat:
+        v = now_rate(code)
+        if v is None:
+            try:
+                cbr = cbr or http_json("https://www.cbr-xml-daily.ru/daily_json.js")
+                x = cbr["Valute"][code]
+                v = x["Value"] / x["Nominal"]
+            except Exception as e:
+                print(f"::warning::quotes {code}: {e}")
+        lines.append(f"{code}/RUR — {num(v) if v is not None else 'нет данных'}")
+    v = now_rate("BTC")
+    if v is None:
+        try:
+            v = http_json("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")["bitcoin"]["usd"]
+        except Exception as e:
+            print(f"::warning::quotes BTC: {e}")
+    lines.append(f"BTC/USD — {num(v, 0) if v is not None else 'нет данных'}")
     return {"lines": lines, "charts": charts} if charts else lines
 
 
