@@ -39,9 +39,9 @@ def http_json(url, headers=None):
     return json.loads(text) if text.strip() else {}
 
 
-def http_text(url):
+def http_text(url, timeout=30):
     req = Request(url, headers={"User-Agent": UA})
-    with urlopen(req, timeout=30) as r:
+    with urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 
@@ -251,16 +251,28 @@ def quotes(card, tz):
 
 # ---------- источник: опубликованный лист Google Таблицы ----------
 
+_SHEETS = {}
+
+
 def sheet_rows(card):
-    """Строки опубликованного листа. Ссылка на CSV — в секрете, имя секрета в поле `secret` блока."""
+    """Строки опубликованного листа. Ссылка на CSV — в секрете, имя секрета в поле `secret` блока.
+    Лист скачивается один раз за запуск (несколько блоков читают один лист); Google бывает медленным — ждём дольше и пробуем дважды."""
     name = card.get("secret", "")
     url = os.environ.get(name)
     if not url:
         raise RuntimeError(f"нет секрета {name or '(не задан secret в config.json)'}")
-    text = http_text(url).lstrip("\ufeff")
-    if text.lstrip().startswith("<"):
-        raise RuntimeError("лист недоступен: проверь публикацию в формате CSV")
-    return list(csv.reader(io.StringIO(text)))
+    if url not in _SHEETS:
+        for attempt in range(2):
+            try:
+                text = http_text(url, timeout=90).lstrip("\ufeff")
+                break
+            except Exception:
+                if attempt:
+                    raise
+        if text.lstrip().startswith("<"):
+            raise RuntimeError("лист недоступен: проверь публикацию в формате CSV")
+        _SHEETS[url] = list(csv.reader(io.StringIO(text)))
+    return _SHEETS[url]
 
 
 def sheet_payments(card, tz):
