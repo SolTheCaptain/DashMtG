@@ -160,9 +160,8 @@ YAHOO = {"USD": "RUB=X", "EUR": "EURRUB=X", "BTC": "BTC-USD"}
 
 
 def intraday(code, tz, step=15):
-    """Рыночный курс за последние сутки с шагом step минут: [{t: ISO-время, v: число}].
+    """Рыночный курс за последние сутки торгов с шагом step минут: [{t: ISO-время, v: число}].
     USD и EUR — Yahoo Finance, BTC — CoinGecko (запасной вариант — Yahoo)."""
-    now = datetime.now(timezone.utc)
     raw = []
     if code == "BTC":
         try:
@@ -175,9 +174,12 @@ def intraday(code, tz, step=15):
         r = ((j.get("chart") or {}).get("result") or [{}])[0]
         closes = (((r.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []
         raw = [(datetime.fromtimestamp(ts, timezone.utc), v) for ts, v in zip(r.get("timestamp") or [], closes) if v]
+    if not raw:
+        return []
+    last = max(t for t, _ in raw)  # в выходные валюта не торгуется: берём последние сутки торгов, а не сутки от «сейчас»
     buckets = {}  # последняя цена в каждом интервале step минут
     for t, v in raw:
-        if now - t <= timedelta(hours=24):
+        if last - t <= timedelta(hours=24):
             buckets[int(t.timestamp()) // (step * 60)] = (t, v)
     nd = 0 if code == "BTC" else 4
     return [{"t": t.isoformat(timespec="minutes"), "v": round(v, nd)} for _, (t, v) in sorted(buckets.items())]
