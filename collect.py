@@ -400,10 +400,9 @@ def left_seconds(t):
 
 
 def topdeck_aucs(card, tz):
-    """Аукционы участника: сколько идёт сейчас и когда закончится ближайший.
-    TopDeck показывает только «осталось 1д 23ч», поэтому время окончания — время сбора + остаток (точность — до часа)."""
+    """Аукционы участника: сколько идёт сейчас и когда закончится ближайший — «N до ДД.ММ ЧЧ:ММ».
+    TopDeck пишет только остаток («1д 23ч», «21ч 17мин»), поэтому окончание = время сбора + остаток."""
     items, lines, fails = [], [], 0
-    now = datetime.now(tz)
     for m in card.get("members", []):
         it = {"label": m["label"], "url": TOPDECK + f"/apps/toptrade/member/{m['id']}/aucs" if m.get("id") else None}
         if not m.get("id"):
@@ -415,11 +414,10 @@ def topdeck_aucs(card, tz):
                 left = sorted(x for x in left if x[0] > 0)
                 it["state"] = "shown" if left else "stub"
                 info = str(len(left))
-                if left:
-                    sec, raw = left[0]
-                    end = now + timedelta(seconds=sec)
-                    # остаток без минут («1д 23ч») — время окончания известно с точностью до часа
-                    info += f" до {end:%d.%m %H:%M}" if re.search(r"\d\s*м", raw) else f" до {end:%d.%m ~%H}:00"
+                if left:  # окончание ближайшего: время сбора + остаток; больше суток TopDeck минут не даёт — тогда «:00»
+                    sec = left[0][0]
+                    end = datetime.now(tz) + timedelta(seconds=sec)
+                    info += f" до {end:%d.%m %H:%M}" if sec < 86400 else f" до {end:%d.%m %H}:00"
                 it["info"] = info
             except Exception as e:
                 fails += 1

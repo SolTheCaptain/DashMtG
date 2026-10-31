@@ -59,17 +59,19 @@ main {
 .col2 { grid-column: 2; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .col2 > .card[data-id="people"] { flex: 0 1 auto; }
 .col2 > .card[data-id="topdeck"] { flex: 1 1 0; }
-.card[data-id="topdeck"] > .subs { grid-template-rows: auto; align-content: start; }
-.tstat { display: flex; gap: 8px; margin-top: 4px; }
-.tstat a, .tstat span { flex: 1; text-align: center; text-decoration: none; padding: 5px 8px; border-radius: 8px; border: 1px solid;
-  font: 700 clamp(12.5px, .85vw, 15px) system-ui, sans-serif; letter-spacing: .04em; }
-.tstat .shown { color: var(--gold); font-weight: 800; background: linear-gradient(180deg, #04b9d4, #177ad2); border-color: var(--gold); }
-.tstat .hidden { color: var(--gold); font-weight: 800; background: var(--down); border-color: var(--gold); }
+.card[data-id="topdeck"] > .sub { flex: none; }
+.mx { display: grid; gap: 6px 6px; align-items: center; }
+.mx h3 { margin: 0; text-align: center; }
+.mx .mk { color: var(--gold-soft); font: 700 clamp(.72rem, .74vw, .95rem) Georgia, "Times New Roman", serif; letter-spacing: .06em; text-transform: uppercase; line-height: 1.25; }
+.mx .sb { display: block; text-align: center; text-decoration: none; padding: 5px 2px; border-radius: 8px; border: 1px solid;
+  font: 700 clamp(12px, .85vw, 15px) system-ui, sans-serif; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx .shown { color: var(--gold); font-weight: 800; background: linear-gradient(180deg, #04b9d4, #177ad2); border-color: var(--gold); }
+.mx .hidden { color: var(--gold); font-weight: 800; background: var(--down); border-color: var(--gold); }
 /* чёрная обводка букв; давно не обновлённая тема — буквы красные */
-.tstat .shown, .tstat .hidden { text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 2px #000; }
-.tstat .old { color: var(--down); }
-.tstat .stub { color: var(--muted); border-color: var(--line); background: #ffffff08; }
-.tstat .error { color: var(--warn); border-color: #ffb45466; background: #ffb4540f; }
+.mx .shown, .mx .hidden { text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 2px #000; }
+.mx .old { color: var(--down); }
+.mx .stub { color: var(--muted); border-color: var(--line); background: #ffffff08; }
+.mx .error { color: var(--warn); border-color: #ffb45466; background: #ffb4540f; }
 .card[data-id="people"] h2 .ico { margin-left: .45em; }
 .card[data-id="people"] .sub h3 { white-space: nowrap; letter-spacing: .04em; font-size: clamp(.72rem, .74vw, .95rem); }
 .card[data-id="people"] .pays .pn { white-space: normal; }  /* длинное имя переносится, а не обрезается */
@@ -499,19 +501,6 @@ function bodyEl(item) {
       t.append(c);
     }));
     b.append(t);
-  } else if (item.items && item.items.length) {  // статусы тем TopDeck: зелёная — видна, красная — скрыта
-    const row = el("div", "tstat");
-    const tip = item.id === "auctions"
-      ? { shown: "идут аукционы", stub: "аукционов нет", error: "данные не получены" }
-      : { shown: "тема видна", hidden: "тема скрыта", stub: "пока нет", error: "статус не получен" };
-    for (const it of item.items) {
-      const x = el(it.url ? "a" : "span", it.state, it.label + (it.date ? " " + it.date : "") + (it.info ? " " + it.info : ""));  // «Sol 26.10», «Sol 5 до 02.11 21:00»
-      if (it.date && daysSince(it.date) > STALE_DAYS) x.classList.add("old");
-      x.title = tip[it.state] || "";
-      if (it.url) { x.href = it.url; x.target = "_blank"; x.rel = "noopener"; }
-      row.append(x);
-    }
-    b.append(row);
   } else if (LISTS.includes(item.id) && item.lines && item.lines.length) {
     const ul = el("ul", "items");
     for (const l of item.lines) ul.append(el("li", "", l));
@@ -580,6 +569,32 @@ function buttonsEl(item) {
   return row;
 }
 
+// Topdeck — таблица: слева категории (подблоки), сверху участники, на пересечении кнопка со статусом
+const TIPS = {
+  auctions: { shown: "идут аукционы", stub: "аукционов нет", error: "данные не получены" },
+  trades: { shown: "тема видна", hidden: "тема скрыта", stub: "пока нет", error: "статус не получен" },
+};
+function matrixEl(c) {
+  const box = el("div", "sub"), mx = el("div", "mx");
+  const people = c.sections[0].items.map(it => it.label);
+  mx.style.gridTemplateColumns = "min-content" + " minmax(0, 1fr)".repeat(people.length);  // подписи категорий переносятся по словам
+  mx.append(el("span"));
+  for (const n of people) mx.append(el("h3", "", n));
+  for (const s of c.sections) {
+    mx.append(el("span", "mk", s.title));
+    (s.items || []).forEach(it => {
+      const x = el(it.url ? "a" : "span", "sb " + it.state, it.date || it.info || "—");  // «26.10», «5 · 22ч»
+      if (it.date && daysSince(it.date) > STALE_DAYS) x.classList.add("old");
+      x.title = (TIPS[s.id] || {})[it.state] || "";
+      if (it.url) { x.href = it.url; x.target = "_blank"; x.rel = "noopener"; }
+      mx.append(x);
+    });
+  }
+  box.append(mx);
+  for (const s of c.sections) if (!s.ok) box.append(warnEl({ error: s.title + ": " + s.error }));
+  return box;
+}
+
 function subEl(s) {
   const sub = el("div", "sub");
   sub.dataset.id = s.id;
@@ -605,7 +620,9 @@ function render(data) {
     const card = el("section", "card");
     card.dataset.id = c.id;
     card.append(head("h2", c));
-    if (c.sections) {
+    if (c.id === "topdeck" && c.sections && c.sections.length && c.sections[0].items) {
+      card.append(matrixEl(c));
+    } else if (c.sections) {
       const subs = el("div", "subs");
       for (const s of c.sections) subs.append(subEl(s));
       card.append(subs);
