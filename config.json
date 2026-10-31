@@ -111,7 +111,7 @@
       "id": "orders",
       "title": "Заказы",
       "type": "sheet_columns",
-      "secret": "USERS_CSV_URL",
+      "secret": "SALES_URL",
       "cols": [
         "P",
         "Q",
