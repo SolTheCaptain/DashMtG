@@ -256,7 +256,7 @@ _SHEETS = {}
 
 def sheet_rows(card):
     """Строки опубликованного листа. Ссылка на CSV — в секрете, имя секрета в поле `secret` блока.
-    Лист скачивается один раз за запуск (несколько блоков читают один лист); Google бывает медленным — ждём дольше и пробуем дважды."""
+    Лист скачивается один раз за запуск (несколько блоков читают один лист); Google бывает медленным — ждём до 3 минут и пробуем дважды."""
     name = card.get("secret", "")
     url = os.environ.get(name)
     if not url:
@@ -264,7 +264,7 @@ def sheet_rows(card):
     if url not in _SHEETS:
         for attempt in range(2):
             try:
-                text = http_text(url, timeout=90).lstrip("\ufeff")
+                text = http_text(url, timeout=180).lstrip("\ufeff")
                 break
             except Exception:
                 if attempt:
