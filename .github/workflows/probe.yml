@@ -1,0 +1,40 @@
+name: Проба TopDeck (временно)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проба
+        env:
+          TOPDECK_COOKIE: ${{ secrets.TOPDECK_COOKIE }}
+        run: |
+          python3 - <<'PY'
+          import os, re, html as H
+          from urllib.request import Request, urlopen
+          req = Request("https://topdeck.ru/apps/toptrade/member/96/aucs",
+                        headers={"User-Agent": "Mozilla/5.0 (dashboard-collector)", "Cookie": os.environ["TOPDECK_COOKIE"]})
+          with urlopen(req, timeout=60) as r:
+              page = r.read().decode("utf-8", "replace")
+          page = re.sub(r'(?i)(name="csrf_\w+" value=")[^"]*', r"\1***", page)
+          page = re.sub(r"(?i)(csrf\w*|key|token)=[0-9a-f]{8,}", r"\1=***", page)
+          body = page[page.find("<body"):]
+          body = re.sub(r"(?is)<(script|style|svg)\b.*?</\1>", "", body)
+          out = [f"bytes={len(page)}"]
+          # где лоты: ищем даты/время и типичные слова
+          for pat in (r"\d{1,2}[./]\d{1,2}[./]\d{2,4}[^<]{0,12}\d{1,2}:\d{2}", r"(?i)оконч\w*", r"(?i)до конца", r"(?i)ставк\w*", r"(?i)аукцион\w*"):
+              out.append(f"{pat}: {len(re.findall(pat, body))}")
+          m = re.search(r"\d{1,2}[./]\d{1,2}[./]\d{2,4}[^<]{0,12}\d{1,2}:\d{2}", body) or re.search(r"(?i)оконч", body)
+          if m:
+              a = max(0, m.start() - 1800)
+              frag = re.sub(r"\s+", " ", body[a:m.end() + 600])
+              for i in range(0, len(frag), 2500):
+                  out.append("frag: " + frag[i:i + 2500])
+          for line in out:
+              print("::warning::" + line)
+          PY
