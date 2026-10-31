@@ -26,15 +26,15 @@ jobs:
           body = page[page.find("<body"):]
           body = re.sub(r"(?is)<(script|style|svg)\b.*?</\1>", "", body)
           out = [f"bytes={len(page)}"]
-          # где лоты: ищем даты/время и типичные слова
-          for pat in (r"\d{1,2}[./]\d{1,2}[./]\d{2,4}[^<]{0,12}\d{1,2}:\d{2}", r"(?i)оконч\w*", r"(?i)до конца", r"(?i)ставк\w*", r"(?i)аукцион\w*"):
-              out.append(f"{pat}: {len(re.findall(pat, body))}")
-          m = re.search(r"\d{1,2}[./]\d{1,2}[./]\d{2,4}[^<]{0,12}\d{1,2}:\d{2}", body) or re.search(r"(?i)оконч", body)
+          for pat in (r"<time[^>]*>", r"datetime=\"[^\"]+\"", r"data-[\w-]*(?:time|date|end)[\w-]*=\"[^\"]+\"", r"\d{1,2}:\d{2}"):
+              f = re.findall(pat, body)
+              out.append(f"{pat}: {len(f)} {f[:4]}")
+          m = re.search(r"(?i)ставк", body)
           if m:
-              a = max(0, m.start() - 1800)
-              frag = re.sub(r"\s+", " ", body[a:m.end() + 600])
-              for i in range(0, len(frag), 2500):
-                  out.append("frag: " + frag[i:i + 2500])
+              a = max(0, m.start() - 3000)
+              frag = re.sub(r"\s+", " ", body[a:m.end() + 1500])
+              for i in range(0, len(frag), 2400):
+                  out.append("frag: " + frag[i:i + 2400])
           for line in out:
               print("::warning::" + line)
           PY
