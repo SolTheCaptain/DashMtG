@@ -211,26 +211,32 @@
         "secret": "SALES_URL",
         "anchor": "Sold",
         "col": 0,
-        "red_from": 100,
-        "refresh_at": "08:00"
+        "red_from": 100
       }
     },
     {
-      "id": "sets",
-      "title": "Сеты",
-      "type": "mtg_roadmap",
-      "count": 5,
-      "types": [
-        "core",
-        "expansion"
+      "id": "next",
+      "title": "Следующие",
+      "type": "group",
+      "sections": [
+        {
+          "id": "sets",
+          "title": "Сеты",
+          "type": "mtg_roadmap",
+          "count": 5,
+          "types": [
+            "core",
+            "expansion"
+          ]
+        },
+        {
+          "id": "bans",
+          "title": "Баны",
+          "type": "mtg_bans",
+          "refresh_days": 7,
+          "rev": 2
+        }
       ]
-    },
-    {
-      "id": "bans",
-      "title": "Баны",
-      "type": "mtg_bans",
-      "refresh_days": 7,
-      "rev": 1
     }
   ],
   "_end": "КОНЕЦ ФАЙЛА config.json"

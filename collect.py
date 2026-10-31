@@ -108,14 +108,14 @@ def mtg_bans(card, tz):
     """Дата следующего анонса банов: в последнем анонсе Wizards есть фраза «next ... <месяц> <день>, <год>»."""
     man = card.get("manual")
     if man:  # ручной запасной вариант из config.json
-        return ["Следующие: " + man["next"]] if man.get("next") else ["Дата следующего анонса пока неизвестна."]
+        return [man["next"]] if man.get("next") else ["Дата следующего анонса пока неизвестна."]
     d, html = br_find_latest(datetime.now(tz).date())
     if not d:
         raise RuntimeError("страница анонса не найдена")
     m = re.search(r"(?is)next.{0,80}?([A-Z][a-z]+) (\d{1,2}), (\d{4})", " ".join(br_text_lines(html)))
     if m and m.group(1).lower() in MONTHS_EN:
         nd = date(int(m.group(3)), MONTHS_EN.index(m.group(1).lower()) + 1, int(m.group(2)))
-        return [f"Следующие: {nd.day} {MONTHS[nd.month - 1]} {nd.year}"]
+        return [f"{nd.day} {MONTHS[nd.month - 1]} {nd.year}"]
     return ["Дата следующего анонса пока неизвестна."]
 
 
@@ -493,7 +493,7 @@ def run_group(card, tz, prev_card, now_iso):
     b = card.get("badge")
     if b:  # число рядом с иконкой карточки (из ячейки листа), обновляется по своему расписанию
         pb = (prev_card or {}).get("badge")
-        if pb and pb.get("at") and is_fresh(b, pb["at"], tz):
+        if pb and pb.get("at") and (b.get("refresh_at") or b.get("refresh_days")) and is_fresh(b, pb["at"], tz):
             out["badge"] = {**pb, "label": b.get("label", ""), "red_from": b.get("red_from")}
         else:
             try:
