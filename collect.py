@@ -304,6 +304,26 @@ def sheet_cell(card):
     raise RuntimeError(f"в листе нет ячейки «{card['anchor']}» в столбце {col}")
 
 
+def sheet_columns(card, tz):
+    """Столбцы листа по буквам `cols` (например P, Q, R): заголовок — ячейка в строке `head_row` (с 1),
+    значения — непустые ячейки ниже. Заголовок берётся из таблицы как есть; пустой столбец без заголовка не показываем."""
+    rows = sheet_rows(card)
+    hr = int(card.get("head_row", 1)) - 1
+    cell = lambda r, j: (r[j] if j < len(r) else "").strip()
+    cols = []
+    for letter in card["cols"]:
+        j = 0
+        for ch in letter.upper():
+            j = j * 26 + ord(ch) - 64
+        j -= 1
+        title = cell(rows[hr], j) if hr < len(rows) else ""
+        vals = [cell(r, j) for r in rows[hr + 1:] if cell(r, j)][:int(card.get("count", 30))]
+        if title or vals:
+            cols.append({"title": title, "values": vals})
+    lines = [f"{c['title'] or '—'}: {', '.join(c['values']) or '—'}" for c in cols]
+    return {"lines": lines or ["Пусто."], "cols": cols, "per_row": card.get("per_row")}
+
+
 def sheet_list(card, tz):
     """Непустые ячейки столбца `col` в строках 1…`count`."""
     i = ord(card.get("col", "A").upper()) - ord("A")
@@ -476,6 +496,7 @@ HANDLERS = {
     "quotes": quotes,
     "sheet_payments": sheet_payments,
     "sheet_list": sheet_list,
+    "sheet_columns": sheet_columns,
     "sheet_table": sheet_table,
     "topdeck_trades": topdeck_trades,
     "topdeck_aucs": topdeck_aucs,
@@ -586,7 +607,7 @@ def run_section(sec, tz, prev):
         out["buttons"] = sec["buttons"]
     if prev and prev.get("ok") and prev.get("at") and prev.get("rev") == sec.get("rev") and is_fresh(sec, prev["at"], tz):
         out.update(ok=True, lines=prev["lines"], at=prev["at"], rev=sec.get("rev"))
-        for k in ("charts", "rows", "table", "items"):
+        for k in ("charts", "rows", "table", "items", "cols"):
             if prev.get(k):
                 out[k] = prev[k]
         if out.get("table"):  # подписи, цвета и кнопки берём из текущего config.json, данные — из кеша
@@ -599,7 +620,7 @@ def run_section(sec, tz, prev):
             raise RuntimeError(f"неизвестный тип блока: {sec.get('type')}")
         res = fn(sec, tz)
         if isinstance(res, dict):
-            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"), table=res.get("table"), items=res.get("items"))
+            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"), table=res.get("table"), items=res.get("items"), cols=res.get("cols"), per_row=res.get("per_row"))
         else:
             out.update(ok=True, lines=res)
         out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -608,7 +629,7 @@ def run_section(sec, tz, prev):
     except Exception as e:
         print(f"::warning::{sec['id']}: {e}")
         out.update(ok=False, error=str(e), lines=(prev or {}).get("lines") or [])
-        for k in ("charts", "rows", "table", "items"):
+        for k in ("charts", "rows", "table", "items", "cols"):
             if (prev or {}).get(k):
                 out[k] = prev[k]
     return out

@@ -58,7 +58,16 @@ main {
 /* «Люди»: вся ширина второй колонки, по высоте содержимого; Платежи и Срочные заказы рядом */
 .col2 { grid-column: 2; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .col2 > .card[data-id="people"] { flex: 0 1 auto; }
-.col2 > .card[data-id="topdeck"] { flex: 1 1 0; }
+.col2 > .card[data-id="topdeck"] { flex: 0 1 auto; }
+.col2 > .card[data-id="orders"] { flex: 1 1 0; }
+.ocols { display: grid; gap: 8px; min-height: 0; grid-auto-rows: minmax(0, 1fr); height: 100%; }
+.ocols .sub { min-height: 0; }
+.ocols h3 { text-align: center; margin-bottom: 3px; }
+.ocols .sub { padding: 5px 8px; }
+.ocols ul { list-style: none; margin: 0; padding: 0; font: clamp(12.5px, .85vw, 16px)/1.4 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+.ocols li { border-bottom: 1px solid #3a2c6066; text-align: center; }
+.ocols li:last-child { border-bottom: none; }
+.ocols .none { color: var(--muted); text-align: center; }
 .card[data-id="topdeck"] > .sub { flex: none; }
 .mx { display: grid; gap: 6px 6px; align-items: center; }
 .mx h3 { margin: 0; text-align: center; }
@@ -281,7 +290,7 @@ pre .cut { font-size: 11px; }
 const root = document.getElementById("cards");
 const stamp = document.getElementById("stamp");
 const reloadBtn = document.getElementById("reload");
-const COL2 = ["people", "topdeck"];  // вторая колонка: Люди сверху по содержимому, Topdeck — остальное
+const COL2 = ["people", "topdeck", "orders"];  // вторая колонка: Люди и Topdeck по содержимому, Заказы — остальное
 const LISTS = ["order"];  // блоки-списки: каждая строка отдельным пунктом
 
 // Значки у заголовков блоков и подблоков (по id)
@@ -506,6 +515,19 @@ function bodyEl(item) {
       t.append(c);
     }));
     b.append(t);
+  } else if (item.cols && item.cols.length) {  // столбцы листа рядом: заголовок и значения под ним
+    const g = el("div", "ocols");
+    g.style.gridTemplateColumns = `repeat(${Math.min(item.cols.length, item.per_row || 99)}, minmax(0, 1fr))`;  // по per_row в ряд
+    for (const c of item.cols) {
+      const sub = el("div", "sub");
+      sub.append(el("h3", "", c.title || "—"));
+      const sb = el("div", "body");
+      if (c.values.length) { const ul = el("ul"); c.values.forEach(v => ul.append(el("li", "", v))); sb.append(ul); }
+      else sb.append(el("div", "none", "—"));
+      sub.append(sb);
+      g.append(sub);
+    }
+    b.append(g);
   } else if (LISTS.includes(item.id) && item.lines && item.lines.length) {
     const ul = el("ul", "items");
     for (const l of item.lines) ul.append(el("li", "", l));

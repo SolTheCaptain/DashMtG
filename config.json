@@ -108,6 +108,22 @@
       ]
     },
     {
+      "id": "orders",
+      "title": "Заказы",
+      "type": "sheet_columns",
+      "secret": "USERS_CSV_URL",
+      "cols": [
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U"
+      ],
+      "head_row": 1,
+      "per_row": 3
+    },
+    {
       "id": "stock",
       "title": "Сток",
       "type": "group",
