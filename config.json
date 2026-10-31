@@ -293,7 +293,8 @@
         "anchor": "Sold",
         "col": 0,
         "red_from": 100
-      }
+      },
+      "link": "$SALES_SHEET_URL"
     },
     {
       "id": "next",

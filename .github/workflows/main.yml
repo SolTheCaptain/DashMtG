@@ -33,6 +33,7 @@ jobs:
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
           USERS_CSV_URL: ${{ secrets.USERS_CSV_URL }}
           SALES_URL: ${{ secrets.SALES_URL }}
+          SALES_SHEET_URL: ${{ secrets.SALES_SHEET_URL }}
           TOPDECK_COOKIE: ${{ secrets.TOPDECK_COOKIE }}
           TOPDECK_COOKIE_SAT: ${{ secrets.TOPDECK_COOKIE_SAT }}
           USERS_SHEET_URL: ${{ secrets.USERS_SHEET_URL }}
