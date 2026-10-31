@@ -292,6 +292,16 @@ def sheet_payments(card, tz):
     return {"lines": lines or ["Платежей нет."], "rows": rows}
 
 
+def sheet_cell(card):
+    """Число под ячейкой-подписью `anchor` в столбце `col` (0 = A)."""
+    rows, col = sheet_rows(card), int(card.get("col", 0))
+    for i, r in enumerate(rows[:-1]):
+        if col < len(r) and r[col].strip().lower() == card["anchor"].strip().lower():
+            nxt = rows[i + 1]
+            return (nxt[col] if col < len(nxt) else "").strip()
+    raise RuntimeError(f"в листе нет ячейки «{card['anchor']}» в столбце {col}")
+
+
 def sheet_list(card, tz):
     """Непустые ячейки столбца `col` в строках 1…`count`."""
     i = ord(card.get("col", "A").upper()) - ord("A")
@@ -324,7 +334,7 @@ def sheet_table(card, tz):
     head = card.get("head") or ["", "", ""]
     lines = [" · ".join(x) for x in out] or ["Пусто."]
     table = {"head": head, "rows": out}
-    for k in ("zones", "export"):  # подкраска столбца и кнопки выгрузки — их отрабатывает страница
+    for k in ("zones", "zero_cols", "export", "export_label"):  # подкраска столбца и кнопки выгрузки — их отрабатывает страница
         if card.get(k):
             table[k] = card[k]
     return {"lines": lines, "table": table}
@@ -415,6 +425,25 @@ def load_previous():
     return prev
 
 
+def is_fresh(sec, at_iso, tz):
+    """Редкие данные не собираем каждый запуск: refresh_days — раз в N дней, refresh_at "ЧЧ:ММ" — раз в сутки после этого времени."""
+    try:
+        at = datetime.fromisoformat(at_iso)
+    except Exception:
+        return False
+    now = datetime.now(timezone.utc)
+    if sec.get("refresh_days"):
+        return now - at < timedelta(days=sec["refresh_days"])
+    if sec.get("refresh_at"):
+        h, m = map(int, sec["refresh_at"].split(":"))
+        loc = now.astimezone(tz)
+        mark = loc.replace(hour=h, minute=m, second=0, microsecond=0)
+        if loc < mark:
+            mark -= timedelta(days=1)
+        return at >= mark  # уже собрано после последнего «ЧЧ:ММ»
+    return False
+
+
 def run_section(sec, tz, prev):
     """Один блок: возвращает словарь для data.json. Ошибка не роняет остальные."""
     out = {"id": sec["id"], "title": sec["title"]}
@@ -422,15 +451,15 @@ def run_section(sec, tz, prev):
         out["link"] = sec["link"]
     if sec.get("buttons"):  # кнопки-копировалки внизу блока
         out["buttons"] = sec["buttons"]
-    days = sec.get("refresh_days")
-    if days and prev and prev.get("ok") and prev.get("at") and prev.get("rev") == sec.get("rev"):
-        try:
-            if datetime.now(timezone.utc) - datetime.fromisoformat(prev["at"]) < timedelta(days=days):
-                out.update(ok=True, lines=prev["lines"], at=prev["at"], rev=sec.get("rev"))
-                print(f"cached   {sec['id']}")
-                return out
-        except Exception:
-            pass
+    if prev and prev.get("ok") and prev.get("at") and prev.get("rev") == sec.get("rev") and is_fresh(sec, prev["at"], tz):
+        out.update(ok=True, lines=prev["lines"], at=prev["at"], rev=sec.get("rev"))
+        for k in ("charts", "rows", "table"):
+            if prev.get(k):
+                out[k] = prev[k]
+        if out.get("table"):  # подписи, цвета и кнопки берём из текущего config.json, данные — из кеша
+            out["table"] = {**out["table"], **{k: sec[k] for k in ("head", "zones", "zero_cols", "export", "export_label") if k in sec}}
+        print(f"cached   {sec['id']}")
+        return out
     try:
         fn = HANDLERS.get(sec.get("type"))
         if not fn:
@@ -461,6 +490,18 @@ def run_group(card, tz, prev_card, now_iso):
     any_ok = any(s["ok"] for s in secs)
     out = {"id": card["id"], "title": card["title"], "ok": all(s["ok"] for s in secs),
            "fetched": now_iso if any_ok else (prev_card or {}).get("fetched"), "sections": secs}
+    b = card.get("badge")
+    if b:  # число рядом с иконкой карточки (из ячейки листа), обновляется по своему расписанию
+        pb = (prev_card or {}).get("badge")
+        if pb and pb.get("at") and is_fresh(b, pb["at"], tz):
+            out["badge"] = {**pb, "label": b.get("label", ""), "red_from": b.get("red_from")}
+        else:
+            try:
+                out["badge"] = {"label": b.get("label", ""), "value": sheet_cell(b), "red_from": b.get("red_from"), "at": now_iso}
+            except Exception as e:
+                print(f"::warning::{card['id']} badge: {e}")
+                if pb:
+                    out["badge"] = pb
     if card.get("link"):  # иконка заголовка — ссылка
         out["link"] = card["link"]
     return out

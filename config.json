@@ -51,105 +51,169 @@
       ]
     },
     {
-      "id": "sales",
-      "title": "Sales",
+      "id": "stock",
+      "title": "Сток",
       "type": "group",
       "sections": [
         {
-          "id": "extras",
-          "title": "Extras",
-          "type": "sheet_table",
-          "secret": "SALES_URL",
-          "anchor": "Extras",
-          "cols": [
-            1,
-            2
-          ],
-          "head": [
-            "",
-            "Left",
-            "Sold"
-          ]
-        },
-        {
-          "id": "checks",
-          "title": "Checks",
-          "type": "sheet_table",
-          "secret": "SALES_URL",
-          "anchor": "Checks",
-          "cols": [
-            1,
-            2
-          ],
-          "head": [
-            "",
-            "Left",
-            "Sold"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "top",
-      "title": "Топ продаж",
-      "type": "group",
-      "sections": [
-        {
-          "id": "top-prints",
-          "title": "Артикул",
-          "type": "sheet_table",
-          "secret": "SALES_URL",
-          "anchor": "Top Sellers",
-          "nth": 0,
-          "cols": [
-            1
-          ],
-          "head": [
-            "",
-            "Sold"
-          ],
-          "export": [
+          "id": "top",
+          "title": "Топ продаж",
+          "type": "group",
+          "sections": [
             {
-              "label": "Выгрузить все",
-              "col": 1
-            }
-          ]
-        },
-        {
-          "id": "top-cards",
-          "title": "Номенклатура",
-          "type": "sheet_table",
-          "secret": "SALES_URL",
-          "anchor": "Top Sellers",
-          "nth": 1,
-          "cols": [
-            1,
-            2
-          ],
-          "head": [
-            "",
-            "Sold",
-            "Left"
-          ],
-          "zones": {
-            "col": 2,
-            "lo": 4,
-            "hi": 8
-          },
-          "export": [
-            {
-              "label": "Выгрузить красные",
-              "col": 2,
-              "zone": "bad"
+              "id": "top-prints",
+              "title": "Артикул",
+              "type": "sheet_table",
+              "secret": "SALES_URL",
+              "anchor": "Top Sellers",
+              "nth": 0,
+              "cols": [
+                1
+              ],
+              "head": [
+                "",
+                "Sold"
+              ],
+              "export": [
+                {
+                  "label": "Выгрузить все",
+                  "col": 1
+                }
+              ],
+              "refresh_at": "08:00"
             },
             {
-              "label": "Выгрузить жёлтые",
-              "col": 2,
-              "zone": "mid"
+              "id": "top-cards",
+              "title": "Номенклатура",
+              "type": "sheet_table",
+              "secret": "SALES_URL",
+              "anchor": "Top Sellers",
+              "nth": 1,
+              "cols": [
+                1,
+                2
+              ],
+              "head": [
+                "",
+                "Sold",
+                "Left"
+              ],
+              "zones": {
+                "col": 2,
+                "lo": 4,
+                "hi": 8
+              },
+              "export": [
+                {
+                  "label": "Красные",
+                  "col": 2,
+                  "zone": "bad"
+                },
+                {
+                  "label": "Жёлтые",
+                  "col": 2,
+                  "zone": "mid"
+                },
+                {
+                  "label": "Все",
+                  "col": 2
+                }
+              ],
+              "export_label": "Выгрузить",
+              "refresh_at": "08:00"
+            }
+          ]
+        },
+        {
+          "id": "sales",
+          "title": "Запасы",
+          "type": "group",
+          "sections": [
+            {
+              "id": "extras",
+              "title": "Лежат",
+              "type": "sheet_table",
+              "secret": "SALES_URL",
+              "anchor": "Extras",
+              "cols": [
+                1,
+                2
+              ],
+              "head": [
+                "",
+                "Left",
+                "Sold"
+              ],
+              "zones": {
+                "col": 2,
+                "lo": 4,
+                "hi": 7,
+                "ok": false
+              },
+              "export_label": "Выгрузить",
+              "export": [
+                {
+                  "label": "Красные",
+                  "col": 2,
+                  "zone": "bad"
+                },
+                {
+                  "label": "Жёлтые",
+                  "col": 2,
+                  "zone": "mid"
+                },
+                {
+                  "label": "Все",
+                  "col": 2
+                }
+              ],
+              "refresh_at": "08:00"
+            },
+            {
+              "id": "checks",
+              "title": "Гипотезы",
+              "type": "sheet_table",
+              "secret": "SALES_URL",
+              "anchor": "Checks",
+              "cols": [
+                1,
+                2
+              ],
+              "head": [
+                "",
+                "Left",
+                "Sold"
+              ],
+              "zero_cols": [
+                1,
+                2
+              ],
+              "export_label": "Выгрузить",
+              "export": [
+                {
+                  "label": "Нет в стоке",
+                  "col": 1,
+                  "zero": true
+                },
+                {
+                  "label": "Нет продаж",
+                  "col": 2,
+                  "zero": true
+                }
+              ],
+              "refresh_at": "08:00"
             }
           ]
         }
-      ]
+      ],
+      "badge": {
+        "label": "Продано:",
+        "secret": "SALES_URL",
+        "anchor": "Sold",
+        "col": 0,
+        "red_from": 100,
+        "refresh_at": "08:00"
+      }
     },
     {
       "id": "sets",
