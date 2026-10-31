@@ -349,7 +349,8 @@ def topdeck_get(path, secret="TOPDECK_COOKIE"):
     """Страница TopDeck под входом: cookie из секрета (у каждого аккаунта свой)."""
     ck = os.environ.get(secret)
     if not ck:
-        raise RuntimeError(f"нет секрета {secret}")
+        seen = ", ".join(f"{k}{'' if os.environ[k] else ' (пустой)'}" for k in sorted(os.environ) if k.startswith("TOPDECK"))
+        raise RuntimeError(f"нет секрета {secret} (сборка видит: {seen or 'ничего'})")
     req = Request(TOPDECK + path, headers={"User-Agent": UA, "Cookie": ck})
     with urlopen(req, timeout=60) as r:
         return r.read().decode("utf-8", "replace")
