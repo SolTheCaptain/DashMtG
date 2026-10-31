@@ -22,6 +22,7 @@
   --warn: #ffb454;
 }
 * { box-sizing: border-box; }
+a[href], button:not(:disabled) { cursor: pointer; }  /* ладошка на всём кликабельном */
 html, body { margin: 0; height: 100%; }
 body {
   display: flex; flex-direction: column; gap: 12px;
@@ -182,7 +183,7 @@ pre .cut { font-size: 11px; }
 .pays .pv.up { color: var(--up); } .pays .pv.down { color: var(--down); }
 .pays .pd { grid-column: 1 / -1; color: var(--muted); font-size: .85em; line-height: 1.35; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
 .cp { font: inherit; color: var(--gold-soft); background: #f2c14e0d; border: 1px solid #f2c14e66; border-radius: 6px;
-  padding: 0 6px; cursor: copy; text-align: left; letter-spacing: normal; text-transform: none; }
+  padding: 0 6px; cursor: pointer; text-align: left; letter-spacing: normal; text-transform: none; }
 .cprow { flex: none; display: flex; gap: 8px; margin: 4px 0 8px; }
 .cpbox { flex: none; margin-top: 8px; }
 .cpbox .cprow { margin: 0; }
@@ -409,7 +410,7 @@ function chartEl(ch) {
 }
 
 // Котировки кнопками: нажатие переключает график под ними; «неделя / сутки» — в заголовке карточки
-let quoteSel = "USD", quoteRange = "week";
+let quoteSel = "USD", quoteRange = "day";  // по умолчанию открыты «Сутки»
 // цвет дельты по модулю изменения в %: до первого порога зелёный, до второго жёлтый, дальше красный
 const DELTA_ZONES = { week: [3, 5], day: [0.5, 1] };
 const RANGES = [["week", "Неделя"], ["day", "Сутки"]];
