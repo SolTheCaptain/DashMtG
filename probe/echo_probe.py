@@ -1,60 +1,30 @@
-# Временная проба EchoMTG: смотрим, что отдаёт API по FRA/FRC
-import json, os, urllib.request, urllib.error
+# Временная проба EchoMTG: история цен FRA+FRC
+import json, os, time, urllib.request, urllib.error
 
 TOKEN = os.environ.get("ECHOMTG_TOKEN", "").strip()
 BASE = "https://api.echomtg.com/api/"
-URLS = [
-    "data/item/?emid=240295",
-    "data/item/?emid=240295&history=1",
-    "data/item_history/?emid=240295",
-    "data/price_history/?emid=240295",
-    "data/history/?emid=240295",
-    "data/item/history/?emid=240295",
-    "data/item_prices/?emid=240295",
-    "inventory/price_history/?emid=240295",
-    "data/prices/?emid=240295",
-]
 
 def get(path):
     req = urllib.request.Request(BASE + path, headers={
         "Authorization": "Bearer " + TOKEN, "User-Agent": "Mozilla/5.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return r.status, r.read().decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:
-        return e.code, e.read().decode("utf-8", "replace")
-    except Exception as e:
-        return 0, repr(e)
+    for _ in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read().decode("utf-8", "replace"))
+        except Exception as e:
+            err = repr(e); time.sleep(2)
+    return {"error": err}
 
-out = {}
-for p in URLS:
-    code, body = get(p)
-    body = body.replace(TOKEN, "***") if TOKEN else body
-    rec = {"status": code, "len": len(body)}
-    try:
-        j = json.loads(body)
-        rec["keys"] = list(j.keys())[:40] if isinstance(j, dict) else type(j).__name__
-        items = None
-        if isinstance(j, dict):
-            for k in ("items", "data", "set", "cards", "results"):
-                v = j.get(k)
-                if isinstance(v, dict):
-                    v = v.get("items", v.get("cards", v))
-                if isinstance(v, list) and v:
-                    items = v; break
-        elif isinstance(j, list):
-            items = j
-        if items:
-            rec["count"] = len(items)
-            rec["item_keys"] = list(items[0].keys()) if isinstance(items[0], dict) else None
-            rec["samples"] = items[:3]
-        else:
-            rec["head"] = body[:6000]
-    except Exception:
-        rec["head"] = body[:1500]
-    out[p] = rec
+out = []
+for code in ("FRA", "FRC"):
+    items = get("data/set/?set_code=" + code).get("set", {}).get("items", [])
+    for it in items:
+        h = get("data/item_history/?emid=%s" % it["emid"]).get("data") or {}
+        out.append({"set": code, "emid": it["emid"], "name": it["name"],
+                    "rarity": it["rarity"], "date": h.get("date"),
+                    "regular": h.get("regular"), "foil": h.get("foil")})
+        time.sleep(0.15)
 
-os.makedirs("probe", exist_ok=True)
 with open("probe/result.json", "w", encoding="utf-8") as f:
-    json.dump(out, f, ensure_ascii=False, indent=1)
+    json.dump(out, f, ensure_ascii=False)
 # КОНЕЦ ФАЙЛА
