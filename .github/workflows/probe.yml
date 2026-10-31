@@ -25,16 +25,17 @@ jobs:
           page = re.sub(r"(?i)(csrf\w*|key|token)=[0-9a-f]{8,}", r"\1=***", page)
           body = page[page.find("<body"):]
           body = re.sub(r"(?is)<(script|style|svg)\b.*?</\1>", "", body)
-          out = [f"bytes={len(page)}"]
-          for pat in (r"<time[^>]*>", r"datetime=\"[^\"]+\"", r"data-[\w-]*(?:time|date|end)[\w-]*=\"[^\"]+\"", r"\d{1,2}:\d{2}"):
-              f = re.findall(pat, body)
-              out.append(f"{pat}: {len(f)} {f[:4]}")
-          m = re.search(r"(?i)ставк", body)
-          if m:
-              a = max(0, m.start() - 3000)
-              frag = re.sub(r"\s+", " ", body[a:m.end() + 1500])
-              for i in range(0, len(frag), 2400):
-                  out.append("frag: " + frag[i:i + 2400])
+          body = body[body.find("</nav>"):]
+          text = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", body))).strip()
+          trs = re.findall(r"(?is)<tr\b.*?</tr>", body)
+          out = [f"bytes={len(page)} text={len(text)} tr={len(trs)} panels={body.count('panel')} thumbs={body.count('thumbnail')}"]
+          for i in range(0, min(len(text), 6000), 2000):
+              out.append(f"text{i}: " + text[i:i + 2000])
+          if len(trs) > 1:
+              out.append("tr1: " + re.sub(r"\s+", " ", trs[1])[:2400])
+          else:
+              k = body.find("thumbnail") if "thumbnail" in body else body.find("panel-body")
+              out.append("blk: " + re.sub(r"\s+", " ", body[max(0, k - 300):k + 2100]))
           for line in out:
               print("::warning::" + line)
           PY
