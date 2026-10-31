@@ -54,7 +54,11 @@ main {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
   grid-template-rows: repeat(12, minmax(0, 1fr));
 }
-.card[data-id="quotes"] { grid-column: 1; grid-row: 1 / span 6; width: 89%; }
+/* первая колонка: Котировки (на 30% ниже прежних 6 строк), Аналитика — остальное, Следующие — по содержимому */
+.col1 { grid-column: 1; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.col1 > .card[data-id="quotes"] { flex: 0 0 35%; }
+.col1 > .card[data-id="analytics"] { flex: 1 1 0; }
+.col1 > .card[data-id="next"] { flex: 0 1 auto; }
 /* «Люди»: вся ширина второй колонки, по высоте содержимого; Платежи и Срочные заказы рядом */
 .col2 { grid-column: 2; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .col2 > .card[data-id="people"] { flex: 0 1 auto; }
@@ -65,8 +69,7 @@ main {
 .ocols h3 { text-align: center; margin-bottom: 3px; }
 .ocols .sub { padding: 5px 8px; }
 .ocols ul { list-style: none; margin: 0; padding: 0; font: clamp(12.5px, .85vw, 16px)/1.4 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
-.ocols li { border-bottom: 1px solid #3a2c6066; text-align: center; }
-.ocols li:last-child { border-bottom: none; }
+.ocols li { text-align: center; }
 .ocols .none { color: var(--muted); text-align: center; }
 .card[data-id="topdeck"] > .sub { flex: none; }
 .mx { display: grid; gap: 6px 6px; align-items: center; }
@@ -92,7 +95,6 @@ main {
 .card[data-id="people"] > .subs { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: auto; }
 
 /* левый низ: «Следующие» (Сеты и Баны) под котировками, по высоте содержимого */
-.card[data-id="next"] { grid-column: 1; grid-row: 7 / -1; width: 89%; align-self: end; max-height: 100%; }
 .card[data-id="next"] > .subs { grid-auto-rows: auto; }
 /* «Сток» — вся третья колонка: сверху «Топ продаж», снизу «Запасы», в каждом две таблицы рядом */
 .card[data-id="stock"] { grid-column: 3; grid-row: 1 / -1; }
@@ -119,8 +121,8 @@ h2 .t, h2:not(.has-ico), h3 .t, h3:not(.has-ico) {
 h2.has-ico, h3.has-ico { display: flex; align-items: center; }
 h2 { font-size: 1.3rem; }  /* заголовки карточек — как название даша */
 h2 .bgap { flex: none; width: .8em; }
-h2 .badge { font-size: 1em; text-transform: none; letter-spacing: .06em; color: var(--gold-soft);
-  text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 1px; text-underline-offset: .28em; }
+h2 .badge { font-size: 1em; text-transform: none; letter-spacing: .06em; color: var(--gold-soft); text-decoration: none; }
+h2 .badge .bl { text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 1px; text-underline-offset: .28em; }
 h2 .badge .bv { color: var(--text); font-family: "Times New Roman", Times, "Liberation Serif", serif; font-variant-numeric: lining-nums; }
 h2 .badge .bv.bad { color: var(--down); }
 h2.has-ico .t, h3.has-ico .t { text-box: trim-both cap alphabetic; }
@@ -141,7 +143,7 @@ pre .day, .d { color: var(--gold-soft); font-weight: 700; text-transform: upperc
 pre .note, pre .th, pre .cut { color: var(--muted); }
 pre .cut { font-size: 11px; }
 
-.card[data-id="quotes"] h2 { margin-bottom: 18px; }
+.card[data-id="quotes"] h2 { margin-bottom: 10px; }
 .card[data-id="quotes"] h2 .ico { margin-left: .5em; transform: translateY(-.15em); }
 .rng { margin-left: auto; display: flex; gap: 4px; }
 .rng button { padding: 3px 11px; font-size: 11px; letter-spacing: .02em; text-transform: none; }
@@ -159,13 +161,13 @@ pre .cut { font-size: 11px; }
   padding: 3px 10px; border-radius: 8px; border: 1px solid #f2c14e44; background: #f2c14e0d; text-align: right; color: var(--muted); }
 .qdelta.ok { color: var(--up); } .qdelta.mid { color: var(--warn); } .qdelta.bad { color: var(--down); }
 .qchart { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.chart { flex: 1; min-height: 70px; display: flex; flex-direction: column; margin-top: 10px; font: clamp(12.5px, .8vw, 15px) system-ui, sans-serif; color: var(--muted); }
+.chart { flex: 1; min-height: 40px; display: flex; flex-direction: column; margin-top: 10px; font: clamp(12.5px, .8vw, 15px) system-ui, sans-serif; color: var(--muted); }
 .chart .ctop { display: flex; align-items: baseline; gap: 6px; }
 .chart .ct { color: var(--gold-soft); font-weight: 700; letter-spacing: .06em; margin-right: auto; }
 .chart .cv { color: var(--text); font-weight: 600; }
 .chart .up { color: var(--up); }
 .chart .down { color: var(--down); }
-.chart .cbox { position: relative; flex: 1; min-height: 40px; margin: 6px 4px 4px; }
+.chart .cbox { position: relative; flex: 1; min-height: 20px; margin: 6px 4px 4px; }
 .chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .chart .cdot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px 2px #f2c14e88; }
 .chart .cends { display: flex; justify-content: space-between; gap: 8px; }
@@ -179,7 +181,7 @@ pre .cut { font-size: 11px; }
 .pays .pv { text-align: right; font-weight: 700; white-space: nowrap; }
 .pays .pv.up { color: var(--up); } .pays .pv.down { color: var(--down); }
 .pays .pd { grid-column: 1 / -1; color: var(--muted); font-size: .85em; line-height: 1.35; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
-.cp { font: inherit; color: var(--gold-soft); background: #f2c14e0d; border: 1px solid #f2c14e44; border-radius: 6px;
+.cp { font: inherit; color: var(--gold-soft); background: #f2c14e0d; border: 1px solid #f2c14e66; border-radius: 6px;
   padding: 0 6px; cursor: copy; text-align: left; letter-spacing: normal; text-transform: none; }
 .cprow { flex: none; display: flex; gap: 8px; margin: 4px 0 8px; }
 .cpbox { flex: none; margin-top: 8px; }
@@ -188,12 +190,13 @@ pre .cut { font-size: 11px; }
 .cplbl { text-align: center; color: var(--gold-soft); font: 700 clamp(.76rem, .82vw, .98rem) Georgia, "Times New Roman", serif;
   letter-spacing: .12em; text-transform: uppercase; margin-bottom: 7px; }
 .cplbl span { text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 1px; text-underline-offset: .28em; }
-.cp.z-bad { color: var(--down); background: #ff5c6c0f; border-color: #ff5c6c55; }
-.cp.z-mid { color: var(--warn); background: #ffb4540f; border-color: #ffb45455; }
-.cp.z-all { color: var(--text); background: #e6e0f40d; border-color: #e6e0f444; }
-.cp.z-bad:hover { color: var(--down); background: #ff5c6c22; border-color: var(--down); }
-.cp.z-mid:hover { color: var(--warn); background: #ffb45422; border-color: var(--warn); }
-.cp.z-all:hover { color: var(--text); background: #e6e0f41c; border-color: var(--text); }
+/* кнопки выгрузки: текст в цвет своих строк, рамка у всех золотая */
+.cp.z-bad { color: var(--down); background: #ff5c6c0f; border-color: #f2c14e66; }
+.cp.z-mid { color: var(--warn); background: #ffb4540f; border-color: #f2c14e66; }
+.cp.z-all { color: var(--text); background: #e6e0f40d; border-color: #f2c14e66; }
+.cp.z-bad:hover { color: var(--down); background: #ff5c6c22; border-color: var(--gold); }
+.cp.z-mid:hover { color: var(--warn); background: #ffb45422; border-color: var(--gold); }
+.cp.z-all:hover { color: var(--text); background: #e6e0f41c; border-color: var(--gold); }
 .cp.z-bad.ok { color: var(--bg); background: var(--down); }
 .cp.z-mid.ok { color: var(--bg); background: var(--warn); }
 .cp.z-all.ok { color: var(--bg); background: var(--text); }
@@ -250,7 +253,7 @@ pre .cut { font-size: 11px; }
 /* низкий экран (ноутбук): плотнее отступы и чуть мельче шрифт, чтобы всё влезло без прокрутки */
 @media (min-width: 1000px) and (max-height: 760px) {
   body { padding: 10px 16px 12px; gap: 8px; }
-  main, .col2 { gap: 8px; }
+  main, .col1, .col2 { gap: 8px; }
   .items li { padding: 3px 0; }
   .card { padding: 8px 12px; }
   h2 { margin-bottom: 6px; font-size: 1.15rem; }
@@ -269,7 +272,7 @@ pre .cut { font-size: 11px; }
   html, body { height: auto; }
   main { display: flex; flex-direction: column; }
   .card { grid-column: auto !important; grid-row: auto !important; }
-  .col2 { display: contents; }
+  .col1, .col2 { display: contents; }
   .subs { display: flex; flex-direction: column; }
   .body { overflow: visible; }
   header { flex-wrap: wrap; }
@@ -290,6 +293,7 @@ pre .cut { font-size: 11px; }
 const root = document.getElementById("cards");
 const stamp = document.getElementById("stamp");
 const reloadBtn = document.getElementById("reload");
+const COL1 = ["quotes", "analytics", "next"];  // первая колонка
 const COL2 = ["people", "topdeck", "orders"];  // вторая колонка: Люди и Topdeck по содержимому, Заказы — остальное
 const LISTS = ["order"];  // блоки-списки: каждая строка отдельным пунктом
 
@@ -475,7 +479,7 @@ function head(tag, item) {
     const b = el("span", "badge");
     const v = el("span", "bv", item.badge.value);
     if (item.badge.red_from != null && +item.badge.value >= item.badge.red_from) v.classList.add("bad");
-    b.append(item.badge.label + " ", v);
+    b.append(el("span", "bl", item.badge.label), " ", v);  // подчёркнута только подпись
     h.append(el("span", "bgap"), b);
   }
   return h;
@@ -651,7 +655,7 @@ function render(data) {
   const tz = TZ = data.timezone || "Europe/Moscow";
   setToday(tz);
   root.innerHTML = "";
-  const col2 = el("div", "col2"); root.append(col2);
+  const col1 = el("div", "col1"), col2 = el("div", "col2"); root.append(col1, col2);
   for (const c of data.cards) {
     const card = el("section", "card");
     card.dataset.id = c.id;
@@ -667,7 +671,7 @@ function render(data) {
       card.append(b);
       if (b.rng) card.querySelector("h2").append(b.rng);  // переключатель — справа в заголовке
     }
-    (COL2.includes(c.id) ? col2 : root).append(card);
+    (COL1.includes(c.id) ? col1 : COL2.includes(c.id) ? col2 : root).append(card);
   }
   stamp.textContent = "данные собраны " + fmt(data.updated, tz);
   showHits(data.cards);

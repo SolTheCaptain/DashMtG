@@ -19,6 +19,14 @@
       }
     },
     {
+      "id": "analytics",
+      "title": "Аналитика",
+      "type": "static",
+      "lines": [
+        "Скоро."
+      ]
+    },
+    {
       "id": "people",
       "title": "Люди",
       "type": "group",

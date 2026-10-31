@@ -490,9 +490,16 @@ def topdeck_aucs(card, tz):
     return {"lines": lines, "items": items}
 
 
+# ---------- текст из config.json (заготовка блока) ----------
+
+def static(card, tz):
+    return card.get("lines") or ["Скоро."]
+
+
 # ---------- реестр типов блоков ----------
 
 HANDLERS = {
+    "static": static,
     "quotes": quotes,
     "sheet_payments": sheet_payments,
     "sheet_list": sheet_list,
