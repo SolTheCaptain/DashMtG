@@ -4,14 +4,15 @@ import json, os, urllib.request, urllib.error
 TOKEN = os.environ.get("ECHOMTG_TOKEN", "").strip()
 BASE = "https://api.echomtg.com/api/"
 URLS = [
-    "data/set/?set_code=FRA",
-    "data/set/?set_code=FRC",
-    "data/set/?set_code=fra&minified=false",
-    "data/set_list/",
-    "data/sets/",
-    "data/trending/",
-    "data/movers/",
-    "data/winners/",
+    "data/item/?emid=240295",
+    "data/item/?emid=240295&history=1",
+    "data/item_history/?emid=240295",
+    "data/price_history/?emid=240295",
+    "data/history/?emid=240295",
+    "data/item/history/?emid=240295",
+    "data/item_prices/?emid=240295",
+    "inventory/price_history/?emid=240295",
+    "data/prices/?emid=240295",
 ]
 
 def get(path):
@@ -48,7 +49,7 @@ for p in URLS:
             rec["item_keys"] = list(items[0].keys()) if isinstance(items[0], dict) else None
             rec["samples"] = items[:3]
         else:
-            rec["head"] = body[:3000]
+            rec["head"] = body[:6000]
     except Exception:
         rec["head"] = body[:1500]
     out[p] = rec
