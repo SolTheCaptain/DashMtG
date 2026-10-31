@@ -23,7 +23,10 @@ today = dt.date.today()
 def rd(s):
     try: return dt.date.fromisoformat((s.get("release_date") or s.get("date") or "")[:10])
     except Exception: return None
-main = [s for s in sets if not s.get("is_group") and s.get("type") == "expansion" and rd(s) and rd(s) <= today - dt.timedelta(days=10)]
+names = {c.get("name") for c in sets}
+main = [s for s in sets if not s.get("is_group") and s.get("type") == "block"
+        and "Tokens" not in s.get("name", "") and "Commander: " + s.get("name", "") in names
+        and rd(s) and rd(s) <= today - dt.timedelta(days=10)]
 main.sort(key=rd, reverse=True)
 picked = []
 for s in main[:2]:
