@@ -33,6 +33,8 @@ jobs:
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
           USERS_CSV_URL: ${{ secrets.USERS_CSV_URL }}
           SALES_URL: ${{ secrets.SALES_URL }}
+          TOPDECK_COOKIE: ${{ secrets.TOPDECK_COOKIE }}
+          TOPDECK_COOKIE_NASTYA: ${{ secrets.TOPDECK_COOKIE_NASTYA }}
           USERS_SHEET_URL: ${{ secrets.USERS_SHEET_URL }}
           PAY_SOL: ${{ secrets.PAY_SOL }}
           PAY_NASTYA: ${{ secrets.PAY_NASTYA }}

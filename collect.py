@@ -340,6 +340,58 @@ def sheet_table(card, tz):
     return {"lines": lines, "table": table}
 
 
+# ---------- источник: TopDeck (вход по cookie из секрета TOPDECK_COOKIE) ----------
+
+TOPDECK = "https://topdeck.ru"
+
+
+def topdeck_get(path, secret="TOPDECK_COOKIE"):
+    """Страница TopDeck под входом: cookie из секрета (у каждого аккаунта свой)."""
+    ck = os.environ.get(secret)
+    if not ck:
+        raise RuntimeError(f"нет секрета {secret}")
+    req = Request(TOPDECK + path, headers={"User-Agent": UA, "Cookie": ck})
+    with urlopen(req, timeout=60) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def topdeck_trades(card, tz):
+    """Видимость торговых тем: на странице участника под входом хозяина есть кнопка «Скрыть» (тема видна) или «Показать» (скрыта)."""
+    items, lines, fails = [], [], 0
+    for m in card.get("members", []):
+        it = {"label": m["label"], "url": TOPDECK + (f"/forums/topic/{m['topic']}/" if m.get("topic") else f"/apps/toptrade/member/{m['id']}")
+              if m.get("id") else None}
+        if m.get("topic"):  # дата обновления из названия темы: «… обновление 2610» → 26.10
+            try:
+                title = unescape((re.search(r"(?is)<title>(.*?)</title>", topdeck_get(f"/forums/topic/{m['topic']}/", m.get("cookie", "TOPDECK_COOKIE"))) or [""])[1])
+                d = re.search(r"(?i)обновлени\w*\s*(\d{1,2})[.\s/-]?(\d{2})\b", title)
+                if d:
+                    it["date"] = f"{int(d.group(1)):02d}.{d.group(2)}"
+            except Exception as e:
+                print(f"::warning::topdeck тема {m['label']}: {e}")
+        if not m.get("id"):
+            it["state"] = "stub"  # заглушка
+        else:
+            try:
+                html = topdeck_get(f"/apps/toptrade/member/{m['id']}", m.get("cookie", "TOPDECK_COOKIE"))
+                btns = re.findall(r"<button[^>]*>(?:\s|<[^>]+>)*(Скрыть|Показать)\s*</button>", html)
+                if "Скрыть" in btns:
+                    it["state"] = "shown"
+                elif "Показать" in btns:
+                    it["state"] = "hidden"
+                else:
+                    raise RuntimeError(f"кнопки «Скрыть/Показать» нет — вход не сработал, обнови {m.get('cookie', 'TOPDECK_COOKIE')}")
+            except Exception as e:
+                fails += 1
+                print(f"::warning::topdeck {m['label']}: {e}")
+                it["state"] = "error"
+        items.append(it)
+        lines.append(f"{m['label']} — {dict(shown='видна', hidden='скрыта', stub='—', error='нет данных')[it['state']]}")
+    if fails and fails == sum(1 for m in card.get("members", []) if m.get("id")):
+        raise RuntimeError("не удалось получить статус ни одной темы")
+    return {"lines": lines, "items": items}
+
+
 # ---------- реестр типов блоков ----------
 
 HANDLERS = {
@@ -347,6 +399,7 @@ HANDLERS = {
     "sheet_payments": sheet_payments,
     "sheet_list": sheet_list,
     "sheet_table": sheet_table,
+    "topdeck_trades": topdeck_trades,
     "mtg_roadmap": mtg_roadmap,
     "mtg_bans": mtg_bans,
 }
@@ -453,7 +506,7 @@ def run_section(sec, tz, prev):
         out["buttons"] = sec["buttons"]
     if prev and prev.get("ok") and prev.get("at") and prev.get("rev") == sec.get("rev") and is_fresh(sec, prev["at"], tz):
         out.update(ok=True, lines=prev["lines"], at=prev["at"], rev=sec.get("rev"))
-        for k in ("charts", "rows", "table"):
+        for k in ("charts", "rows", "table", "items"):
             if prev.get(k):
                 out[k] = prev[k]
         if out.get("table"):  # подписи, цвета и кнопки берём из текущего config.json, данные — из кеша
@@ -466,7 +519,7 @@ def run_section(sec, tz, prev):
             raise RuntimeError(f"неизвестный тип блока: {sec.get('type')}")
         res = fn(sec, tz)
         if isinstance(res, dict):
-            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"), table=res.get("table"))
+            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"), table=res.get("table"), items=res.get("items"))
         else:
             out.update(ok=True, lines=res)
         out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -475,7 +528,7 @@ def run_section(sec, tz, prev):
     except Exception as e:
         print(f"::warning::{sec['id']}: {e}")
         out.update(ok=False, error=str(e), lines=(prev or {}).get("lines") or [])
-        for k in ("charts", "rows", "table"):
+        for k in ("charts", "rows", "table", "items"):
             if (prev or {}).get(k):
                 out[k] = prev[k]
     return out

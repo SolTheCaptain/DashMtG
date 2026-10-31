@@ -51,6 +51,31 @@
       ]
     },
     {
+      "id": "topdeck",
+      "title": "Topdeck",
+      "type": "group",
+      "sections": [
+        {
+          "id": "trades",
+          "title": "Торговые темы",
+          "type": "topdeck_trades",
+          "members": [
+            {
+              "label": "Sol",
+              "id": 96,
+              "topic": 335343
+            },
+            {
+              "label": "Настя",
+              "id": 101,
+              "cookie": "TOPDECK_COOKIE_NASTYA",
+              "topic": 355026
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "stock",
       "title": "Сток",
       "type": "group",

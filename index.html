@@ -33,6 +33,7 @@ body {
 
 header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 .today { margin-left: 1.4em; }
+h1 .hits { margin-left: 1.4em; color: var(--down); text-shadow: 0 0 18px #ff5c6c33; }
 h1 .today .dt { font-size: 1.05em; font-family: "Times New Roman", Times, "Liberation Serif", serif; font-variant-numeric: lining-nums; letter-spacing: .08em; }
 h1 {
   margin: 0; color: var(--gold);
@@ -54,10 +55,22 @@ main {
   grid-template-rows: repeat(12, minmax(0, 1fr));
 }
 .card[data-id="quotes"] { grid-column: 1; grid-row: 1 / span 6; width: 89%; }
-/* «Люди»: «Платежи» (5 человек + кнопки) чуть выше «Срочных заказов» */
-.card[data-id="people"] { grid-column: 2; grid-row: 1 / -1; width: 89%; }
+/* «Люди»: вся ширина второй колонки, по высоте содержимого; Платежи и Срочные заказы рядом */
+.col2 { grid-column: 2; grid-row: 1 / -1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.col2 > .card[data-id="people"] { flex: 0 1 auto; }
+.col2 > .card[data-id="topdeck"] { flex: 1 1 0; }
+.card[data-id="topdeck"] > .subs { grid-template-rows: auto; align-content: start; }
+.tstat { display: flex; gap: 8px; margin-top: 4px; }
+.tstat a, .tstat span { flex: 1; text-align: center; text-decoration: none; padding: 5px 8px; border-radius: 8px; border: 1px solid;
+  font: 700 clamp(12.5px, .85vw, 15px) system-ui, sans-serif; letter-spacing: .04em; }
+.tstat .shown { color: var(--gold); font-weight: 800; text-shadow: 0 1px 2px #0f0a1a99; background: linear-gradient(180deg, #04b9d4, #177ad2); border-color: var(--bg); }
+.tstat .hidden { color: var(--gold); font-weight: 800; text-shadow: 0 1px 2px #0f0a1a99; background: var(--down); border-color: var(--bg); }
+.tstat .stub { color: var(--muted); border-color: var(--line); background: #ffffff08; }
+.tstat .error { color: var(--warn); border-color: #ffb45466; background: #ffb4540f; }
 .card[data-id="people"] h2 .ico { margin-left: .45em; }
-.card[data-id="people"] > .subs { grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); }
+.card[data-id="people"] .sub h3 { white-space: nowrap; letter-spacing: .04em; font-size: clamp(.72rem, .74vw, .95rem); }
+.card[data-id="people"] .pays .pn { white-space: normal; }  /* длинное имя переносится, а не обрезается */
+.card[data-id="people"] > .subs { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: auto; }
 
 /* левый низ: «Следующие» (Сеты и Баны) под котировками, по высоте содержимого */
 .card[data-id="next"] { grid-column: 1; grid-row: 7 / -1; width: 89%; align-self: end; max-height: 100%; }
@@ -218,7 +231,7 @@ pre .cut { font-size: 11px; }
 /* низкий экран (ноутбук): плотнее отступы и чуть мельче шрифт, чтобы всё влезло без прокрутки */
 @media (min-width: 1000px) and (max-height: 760px) {
   body { padding: 10px 16px 12px; gap: 8px; }
-  main { gap: 8px; }
+  main, .col2 { gap: 8px; }
   .items li { padding: 3px 0; }
   .card { padding: 8px 12px; }
   h2 { margin-bottom: 6px; font-size: 1.15rem; }
@@ -237,6 +250,7 @@ pre .cut { font-size: 11px; }
   html, body { height: auto; }
   main { display: flex; flex-direction: column; }
   .card { grid-column: auto !important; grid-row: auto !important; }
+  .col2 { display: contents; }
   .subs { display: flex; flex-direction: column; }
   .body { overflow: visible; }
   header { flex-wrap: wrap; }
@@ -245,7 +259,7 @@ pre .cut { font-size: 11px; }
 </head>
 <body>
 <header>
-  <h1>DashMtGMain<span class="today"><span class="big">Сегодня</span> <span class="dt" id="today"></span></span></h1>
+  <h1>DashMtGMain<span class="today"><span class="big">Сегодня</span> <span class="dt" id="today"></span></span><span class="hits" id="hits"></span></h1>
   <div class="right"><span id="stamp"></span><button id="reload" type="button">↻ Обновить</button></div>
 </header>
 <main id="cards"></main>
@@ -257,6 +271,7 @@ pre .cut { font-size: 11px; }
 const root = document.getElementById("cards");
 const stamp = document.getElementById("stamp");
 const reloadBtn = document.getElementById("reload");
+const COL2 = ["people", "topdeck"];  // вторая колонка: Люди сверху по содержимому, Topdeck — остальное
 const LISTS = ["order"];  // блоки-списки: каждая строка отдельным пунктом
 
 // Значки у заголовков блоков и подблоков (по id)
@@ -481,6 +496,16 @@ function bodyEl(item) {
       t.append(c);
     }));
     b.append(t);
+  } else if (item.items && item.items.length) {  // статусы тем TopDeck: зелёная — видна, красная — скрыта
+    const row = el("div", "tstat");
+    const tip = { shown: "тема видна", hidden: "тема скрыта", stub: "пока нет", error: "статус не получен" };
+    for (const it of item.items) {
+      const x = el(it.url ? "a" : "span", it.state, it.label + (it.date ? " " + it.date : ""));  // «Sol 26.10» — дата обновления темы
+      x.title = tip[it.state] || "";
+      if (it.url) { x.href = it.url; x.target = "_blank"; x.rel = "noopener"; }
+      row.append(x);
+    }
+    b.append(row);
   } else if (LISTS.includes(item.id) && item.lines && item.lines.length) {
     const ul = el("ul", "items");
     for (const l of item.lines) ul.append(el("li", "", l));
@@ -559,6 +584,7 @@ function render(data) {
   const tz = TZ = data.timezone || "Europe/Moscow";
   setToday(tz);
   root.innerHTML = "";
+  const col2 = el("div", "col2"); root.append(col2);
   for (const c of data.cards) {
     const card = el("section", "card");
     card.dataset.id = c.id;
@@ -572,9 +598,10 @@ function render(data) {
       card.append(b);
       if (b.rng) card.querySelector("h2").append(b.rng);  // переключатель — справа в заголовке
     }
-    root.append(card);
+    (COL2.includes(c.id) ? col2 : root).append(card);
   }
   stamp.textContent = "данные собраны " + fmt(data.updated, tz);
+  showHits(data.cards);
 }
 
 // ---------- пароль: data.json зашифрован (см. collect.py), расшифровываем в браузере ----------
@@ -636,6 +663,18 @@ function loginEl(box, wrong) {
   card.append(f);
   root.append(card);
   inp.focus();
+}
+
+// В шапке после даты — красным названия блоков, где встречается сегодняшняя дата
+function showHits(cards) {
+  const out = [];
+  const walk = n => {
+    if (n.sections) { n.sections.forEach(walk); return; }
+    const hit = (n.lines || []).some(l => { DATE_RE.lastIndex = 0; let m; while ((m = DATE_RE.exec(l))) if (isToday(m)) return true; return false; });
+    if (hit && !out.includes(n.title)) out.push(n.title);
+  };
+  cards.forEach(walk);
+  document.getElementById("hits").textContent = out.join(" · ");
 }
 
 async function load() {
