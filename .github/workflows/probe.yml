@@ -17,7 +17,7 @@ jobs:
           python3 - <<'PY'
           import os, re, html as H
           from urllib.request import Request, urlopen
-          req = Request("https://topdeck.ru/apps/toptrade/member/96/aucs",
+          req = Request("https://topdeck.ru/apps/toptrade/auctions/547644",
                         headers={"User-Agent": "Mozilla/5.0 (dashboard-collector)", "Cookie": os.environ["TOPDECK_COOKIE"]})
           with urlopen(req, timeout=60) as r:
               page = r.read().decode("utf-8", "replace")
@@ -27,15 +27,12 @@ jobs:
           body = re.sub(r"(?is)<(script|style|svg)\b.*?</\1>", "", body)
           body = body[body.find("</nav>"):]
           text = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", body))).strip()
-          trs = re.findall(r"(?is)<tr\b.*?</tr>", body)
-          out = [f"bytes={len(page)} text={len(text)} tr={len(trs)} panels={body.count('panel')} thumbs={body.count('thumbnail')}"]
-          for i in range(0, min(len(text), 6000), 2000):
+          out = [f"bytes={len(page)} text={len(text)}"]
+          for i in range(0, min(len(text), 4000), 2000):
               out.append(f"text{i}: " + text[i:i + 2000])
-          if len(trs) > 1:
-              out.append("tr1: " + re.sub(r"\s+", " ", trs[1])[:2400])
-          else:
-              k = body.find("thumbnail") if "thumbnail" in body else body.find("panel-body")
-              out.append("blk: " + re.sub(r"\s+", " ", body[max(0, k - 300):k + 2100]))
+          for pat in (r"js-time[^>]*>[^<]*", r"data-[\w-]+=\"\d{9,}\"", r"\d{1,2}:\d{2}(?::\d{2})?", r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}"):
+              f = re.findall(pat, page)
+              out.append(f"{pat}: {len(f)} {f[:5]}")
           for line in out:
               print("::warning::" + line)
           PY
