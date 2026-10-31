@@ -416,7 +416,7 @@ def resolve(x):
         return [resolve(v) for v in x]
     if isinstance(x, str) and re.fullmatch(r"\$[A-Z0-9_]+", x):
         v = os.environ.get(x[1:])
-        if v is None:
+        if not v:  # секрет не заведён или пустой (Actions передаёт пустую строку)
             print(f"::warning::нет секрета {x[1:]}")
         return v or ""
     return x
