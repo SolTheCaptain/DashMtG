@@ -1,0 +1,436 @@
+#!/usr/bin/env python3
+"""Собирает данные для дашборда в data.json.
+
+Читает config.json, для каждого блока вызывает обработчик по полю "type"
+и пишет результат в data.json. Только стандартная библиотека Python.
+
+Как добавить новый тип блока:
+  1. написать функцию вида  def мой_блок(card, tz): ... return [строки]
+  2. добавить её в словарь HANDLERS внизу файла
+  3. использовать "type": "мой_блок" в config.json
+"""
+import base64
+import csv
+import hashlib
+import hmac
+import io
+import json
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
+from html import unescape
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+UA = "Mozilla/5.0 (dashboard-collector)"
+MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+          "августа", "сентября", "октября", "ноября", "декабря"]
+
+
+# ---------- общие помощники ----------
+
+def http_json(url, headers=None):
+    req = Request(url, headers={"User-Agent": UA, **(headers or {})})
+    with urlopen(req, timeout=30) as r:
+        text = r.read().decode("utf-8")
+    return json.loads(text) if text.strip() else {}
+
+
+def http_text(url):
+    req = Request(url, headers={"User-Agent": UA})
+    with urlopen(req, timeout=30) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+# ---------- источник: Scryfall (сеты Magic, ключ не нужен) ----------
+
+def mtg_roadmap(card, tz):
+    """Основные бумажные сеты Magic от сегодня: до конца года или `count` ближайших; без даты — TBA."""
+    today = datetime.now(tz).date()
+    count = card.get("count")
+    end = date(today.year + 1, 12, 31) if count else date(today.year, 12, 31)
+    types = set(card.get("types", ["core", "expansion"]))
+    j = http_json("https://api.scryfall.com/sets", {
+        "User-Agent": "DashMtGMain/1.0 (github.com/SolTheCaptain/DashMtGMain)",
+        "Accept": "application/json;q=0.9,*/*;q=0.8"})
+    dated, tba = [], list(card.get("extra", []))
+    for s in j.get("data") or []:
+        if s.get("digital") or s.get("set_type") not in types:
+            continue
+        if not s.get("released_at"):
+            tba.append(s["name"])
+            continue
+        d = date.fromisoformat(s["released_at"])
+        if today <= d <= end:
+            dated.append((d, s["name"]))
+    dated.sort()
+    if not dated and not tba:
+        return [f"До конца {end.year} года новых сетов в источнике нет."]
+    lines = [f"{d.day} {MONTHS[d.month - 1]} — {name}" for d, name in dated]
+    lines += [f"TBA — {name}" for name in tba]
+    return lines[:count] if count else lines
+
+
+# ---------- источник: Wizards (дата следующего анонса банов) ----------
+
+MONTHS_EN = ["january", "february", "march", "april", "may", "june", "july",
+             "august", "september", "october", "november", "december"]
+BR_URL = "https://magic.wizards.com/en/news/announcements/banned-and-restricted-{m}-{d}-{y}"
+
+
+def br_find_latest(today):
+    """Страницы анонсов называются banned-and-restricted-<месяц>-<день>-<год>: перебираем дни назад."""
+    def probe(d):
+        try:
+            return d, http_text(BR_URL.format(m=MONTHS_EN[d.month - 1], d=d.day, y=d.year))
+        except Exception:
+            return d, None
+    for start in range(0, 150, 14):
+        days = [today - timedelta(days=i) for i in range(start, start + 14)]
+        with ThreadPoolExecutor(7) as ex:
+            hits = [(d, h) for d, h in ex.map(probe, days) if h]
+        if hits:
+            return max(hits, key=lambda x: x[0])
+    return None, None
+
+
+def br_text_lines(html):
+    html = re.sub(r"(?is)<(script|style|noscript).*?</\1>", " ", html)
+    html = re.sub(r"(?i)</?(p|div|li|ul|ol|h[1-6]|br|tr|section|article)[^>]*>", "\n", html)
+    html = re.sub(r"<[^>]+>", " ", html)
+    return [re.sub(r"\s+", " ", unescape(l)).strip() for l in html.split("\n") if l.strip()]
+
+
+def mtg_bans(card, tz):
+    """Дата следующего анонса банов: в последнем анонсе Wizards есть фраза «next ... <месяц> <день>, <год>»."""
+    man = card.get("manual")
+    if man:  # ручной запасной вариант из config.json
+        return ["Следующие: " + man["next"]] if man.get("next") else ["Дата следующего анонса пока неизвестна."]
+    d, html = br_find_latest(datetime.now(tz).date())
+    if not d:
+        raise RuntimeError("страница анонса не найдена")
+    m = re.search(r"(?is)next.{0,80}?([A-Z][a-z]+) (\d{1,2}), (\d{4})", " ".join(br_text_lines(html)))
+    if m and m.group(1).lower() in MONTHS_EN:
+        nd = date(int(m.group(3)), MONTHS_EN.index(m.group(1).lower()) + 1, int(m.group(2)))
+        return [f"Следующие: {nd.day} {MONTHS[nd.month - 1]} {nd.year}"]
+    return ["Дата следующего анонса пока неизвестна."]
+
+
+# ---------- источник: ЦБ РФ и CoinGecko (котировки, ключи не нужны) ----------
+
+def num(v, nd=2):
+    return f"{v:,.{nd}f}".replace(",", "\xa0").replace(".", ",")
+
+
+CBR_IDS = {"USD": "R01235", "EUR": "R01239"}
+
+
+def cbr_history(code, days, tz):
+    """Официальный курс ЦБ за последние дни: [{d: 'ГГГГ-ММ-ДД', v: число}], только рабочие дни."""
+    import xml.etree.ElementTree as ET
+    end = datetime.now(tz).date() + timedelta(days=1)
+    start = end - timedelta(days=days + 1)
+    url = ("https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=" + start.strftime("%d/%m/%Y") +
+           "&date_req2=" + end.strftime("%d/%m/%Y") + "&VAL_NM_RQ=" + CBR_IDS[code])
+    with urlopen(Request(url, headers={"User-Agent": UA}), timeout=30) as r:
+        root = ET.fromstring(r.read())
+    out = []
+    for rec in root.iter("Record"):
+        d = datetime.strptime(rec.get("Date"), "%d.%m.%Y").date()
+        v = float(rec.find("Value").text.replace(",", ".")) / int(rec.find("Nominal").text)
+        if d <= datetime.now(tz).date():  # завтрашний курс ЦБ публикует заранее, на графике он ни к чему
+            out.append({"d": d.isoformat(), "v": round(v, 4)})
+    return sorted(out, key=lambda x: x["d"])
+
+
+def btc_history(days, tz):
+    """BTC/USD по дням (последняя цена за сутки) из CoinGecko."""
+    j = http_json(f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days={days + 1}")
+    by_day = {}
+    for ts, price in j.get("prices") or []:
+        d = datetime.fromtimestamp(ts / 1000, tz).date()
+        by_day[d] = price
+    return [{"d": d.isoformat(), "v": round(v)} for d, v in sorted(by_day.items())][-(days + 1):]
+
+
+YAHOO = {"USD": "RUB=X", "EUR": "EURRUB=X", "BTC": "BTC-USD"}
+
+
+def intraday(code, tz, step=15):
+    """Рыночный курс за последние сутки с шагом step минут: [{t: ISO-время, v: число}].
+    USD и EUR — Yahoo Finance, BTC — CoinGecko (запасной вариант — Yahoo)."""
+    now = datetime.now(timezone.utc)
+    raw = []
+    if code == "BTC":
+        try:
+            j = http_json("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1")
+            raw = [(datetime.fromtimestamp(ts / 1000, timezone.utc), p) for ts, p in j.get("prices") or []]
+        except Exception as e:
+            print(f"::warning::quotes day BTC (CoinGecko): {e}")
+    if not raw:
+        j = http_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(YAHOO[code])}?range=2d&interval={step}m")
+        r = ((j.get("chart") or {}).get("result") or [{}])[0]
+        closes = (((r.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []
+        raw = [(datetime.fromtimestamp(ts, timezone.utc), v) for ts, v in zip(r.get("timestamp") or [], closes) if v]
+    buckets = {}  # последняя цена в каждом интервале step минут
+    for t, v in raw:
+        if now - t <= timedelta(hours=24):
+            buckets[int(t.timestamp()) // (step * 60)] = (t, v)
+    nd = 0 if code == "BTC" else 4
+    return [{"t": t.isoformat(timespec="minutes"), "v": round(v, nd)} for _, (t, v) in sorted(buckets.items())]
+
+
+def quotes(card, tz):
+    """Курсы ЦБ к рублю и BTC к доллару.
+    Графики по каждой паре: неделя (ЦБ, CoinGecko по дням) и сутки (рыночный курс каждые 15 минут)."""
+    cbr = http_json("https://www.cbr-xml-daily.ru/daily_json.js")
+    lines = []
+    for code in card.get("fiat", ["USD", "EUR"]):
+        v = cbr["Valute"][code]
+        lines.append(f"{code}/RUR — {num(v['Value'] / v['Nominal'])}")
+    try:
+        btc = http_json("https://api.coingecko.com/api/v3/simple/price"
+                        "?ids=bitcoin&vs_currencies=usd")["bitcoin"]
+        lines.append(f"BTC/USD — {num(btc['usd'], 0)}")
+    except Exception as e:
+        print(f"::warning::quotes BTC: {e}")
+        lines.append("BTC/USD — нет данных")
+    ch = card.get("chart")
+    if not ch:
+        return lines
+    days = int(ch.get("days", 7))
+    charts = {}  # сбой одного графика остальное не ломает
+    for code in ch.get("codes", ["USD", "EUR", "BTC"]):
+        pair, cur = f"{code}/{'USD' if code == 'BTC' else 'RUR'}", "$" if code == "BTC" else "₽"
+        got = {}
+        try:
+            pts = btc_history(days, tz) if code == "BTC" else cbr_history(code, days, tz)
+            if len(pts) >= 2:
+                got["week"] = {"title": f"{pair} · {days} дн.", "points": pts, "cur": cur}
+        except Exception as e:
+            print(f"::warning::quotes week {code}: {e}")
+        try:
+            pts = intraday(code, tz, int(ch.get("step", 15)))
+            if len(pts) >= 2:
+                got["day"] = {"title": f"{pair} · сутки", "points": pts, "cur": cur}
+        except Exception as e:
+            print(f"::warning::quotes day {code}: {e}")
+        if got:
+            charts[code] = got
+    return {"lines": lines, "charts": charts} if charts else lines
+
+
+# ---------- источник: опубликованный лист Google Таблицы ----------
+
+def sheet_rows(card):
+    """Строки опубликованного листа. Ссылка на CSV — в секрете, имя секрета в поле `secret` блока."""
+    name = card.get("secret", "")
+    url = os.environ.get(name)
+    if not url:
+        raise RuntimeError(f"нет секрета {name or '(не задан secret в config.json)'}")
+    text = http_text(url).lstrip("\ufeff")
+    if text.lstrip().startswith("<"):
+        raise RuntimeError("лист недоступен: проверь публикацию в формате CSV")
+    return list(csv.reader(io.StringIO(text)))
+
+
+def sheet_payments(card, tz):
+    """Столбцы A–C: кто, сумма, реквизит."""
+    rows = []
+    for r in sheet_rows(card):
+        name, amount, note = (list(r) + ["", "", ""])[:3]
+        name, note = name.strip(), note.strip()
+        raw = re.sub(r"[\s\xa0₽]", "", amount).replace("−", "-").replace(",", ".")
+        try:
+            v = float(raw)
+        except ValueError:
+            continue  # шапка или пустая строка
+        if name:
+            rows.append({"name": name, "v": round(v, 2), "note": note})
+    lines = [f"{x['name']} — {num(x['v'], 0)} ₽" + (f" ({x['note']})" if x["note"] else "") for x in rows]
+    return {"lines": lines or ["Платежей нет."], "rows": rows}
+
+
+def sheet_list(card, tz):
+    """Непустые ячейки столбца `col` в строках 1…`count`."""
+    i = ord(card.get("col", "A").upper()) - ord("A")
+    cells = [(r[i] if i < len(r) else "").strip() for r in sheet_rows(card)[:int(card.get("count", 5))]]
+    return [c for c in cells if c] or ["Пусто."]
+
+
+# ---------- текст из config.json (заготовка блока) ----------
+
+def static(card, tz):
+    return card.get("lines") or ["Скоро."]
+
+
+# ---------- реестр типов блоков ----------
+
+HANDLERS = {
+    "quotes": quotes,
+    "sheet_payments": sheet_payments,
+    "sheet_list": sheet_list,
+    "static": static,
+    "mtg_roadmap": mtg_roadmap,
+    "mtg_bans": mtg_bans,
+}
+
+
+# ---------- секреты и шифрование ----------
+
+def resolve(x):
+    """Строки вида "$ИМЯ" в config.json заменяются значением секрета ИМЯ (личные данные не лежат в репо)."""
+    if isinstance(x, dict):
+        return {k: resolve(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [resolve(v) for v in x]
+    if isinstance(x, str) and re.fullmatch(r"\$[A-Z0-9_]+", x):
+        v = os.environ.get(x[1:])
+        if v is None:
+            print(f"::warning::нет секрета {x[1:]}")
+        return v or ""
+    return x
+
+
+# data.json шифруется паролем из секрета DASH_PASSWORD; страница расшифровывает его в браузере.
+# Ключ: PBKDF2-SHA256 (пароль, постоянная соль, KDF_ITER) → 64 байта: 32 на шифр, 32 на подпись.
+# Шифр: поток HMAC-SHA256(ключ, nonce + номер блока) XOR данные; подпись: HMAC-SHA256(nonce + шифротекст).
+KDF_SALT, KDF_ITER = b"DashMtGMain", 200000
+
+
+def keys(password):
+    k = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), KDF_SALT, KDF_ITER, 64)
+    return k[:32], k[32:]
+
+
+def stream(key, nonce, n):
+    out = bytearray()
+    for i in range((n + 31) // 32):
+        out += hmac.new(key, nonce + i.to_bytes(4, "big"), hashlib.sha256).digest()
+    return bytes(out[:n])
+
+
+def encrypt(obj, password):
+    ek, mk = keys(password)
+    pt = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    nonce = os.urandom(16)
+    ct = bytes(a ^ b for a, b in zip(pt, stream(ek, nonce, len(pt))))
+    tag = hmac.new(mk, nonce + ct, hashlib.sha256).digest()
+    b64 = lambda b: base64.b64encode(b).decode()
+    return {"enc": 1, "iter": KDF_ITER, "nonce": b64(nonce), "ct": b64(ct), "tag": b64(tag)}
+
+
+def decrypt(box, password):
+    ek, mk = keys(password)
+    nonce, ct, tag = (base64.b64decode(box[k]) for k in ("nonce", "ct", "tag"))
+    if not hmac.compare_digest(hmac.new(mk, nonce + ct, hashlib.sha256).digest(), tag):
+        raise ValueError("неверный пароль")
+    return json.loads(bytes(a ^ b for a, b in zip(ct, stream(ek, nonce, len(ct)))))
+
+
+# ---------- запуск ----------
+
+def load_previous():
+    """Прошлые данные нужны, чтобы при сбое источника показать последнее удачное."""
+    prev = {}
+    try:
+        url = os.environ.get("PREV_URL")
+        if url:
+            data = http_json(url + "?t=" + str(int(datetime.now().timestamp())))
+        else:
+            with open(os.path.join(ROOT, "data.json"), encoding="utf-8") as f:
+                data = json.load(f)
+        if data.get("enc"):
+            data = decrypt(data, os.environ.get("DASH_PASSWORD", ""))
+        for c in data.get("cards", []):
+            prev[c["id"]] = c
+    except Exception:
+        pass  # прошлых данных нет или пароль сменился: соберём с нуля
+    return prev
+
+
+def run_section(sec, tz, prev):
+    """Один блок: возвращает словарь для data.json. Ошибка не роняет остальные."""
+    out = {"id": sec["id"], "title": sec["title"]}
+    if sec.get("link"):  # иконка заголовка — ссылка
+        out["link"] = sec["link"]
+    if sec.get("buttons"):  # кнопки-копировалки внизу блока
+        out["buttons"] = sec["buttons"]
+    days = sec.get("refresh_days")
+    if days and prev and prev.get("ok") and prev.get("at") and prev.get("rev") == sec.get("rev"):
+        try:
+            if datetime.now(timezone.utc) - datetime.fromisoformat(prev["at"]) < timedelta(days=days):
+                out.update(ok=True, lines=prev["lines"], at=prev["at"], rev=sec.get("rev"))
+                print(f"cached   {sec['id']}")
+                return out
+        except Exception:
+            pass
+    try:
+        fn = HANDLERS.get(sec.get("type"))
+        if not fn:
+            raise RuntimeError(f"неизвестный тип блока: {sec.get('type')}")
+        res = fn(sec, tz)
+        if isinstance(res, dict):
+            out.update(ok=True, lines=res["lines"], charts=res.get("charts"), rows=res.get("rows"))
+        else:
+            out.update(ok=True, lines=res)
+        out["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        out["rev"] = sec.get("rev")
+        print(f"ok       {sec['id']}")
+    except Exception as e:
+        print(f"::warning::{sec['id']}: {e}")
+        out.update(ok=False, error=str(e), lines=(prev or {}).get("lines") or [])
+        for k in ("charts", "rows"):
+            if (prev or {}).get(k):
+                out[k] = prev[k]
+    return out
+
+
+def run_group(card, tz, prev_card, now_iso):
+    """Карточка с подблоками и одной общей пометкой «обновлено»."""
+    prev_secs = {s["id"]: s for s in (prev_card or {}).get("sections", [])}
+    secs = [run_group(s, tz, prev_secs.get(s["id"]), now_iso) if s.get("type") == "group"
+            else run_section(s, tz, prev_secs.get(s["id"]))
+            for s in card["sections"] if s.get("enabled", True) is not False]
+    any_ok = any(s["ok"] for s in secs)
+    out = {"id": card["id"], "title": card["title"], "ok": all(s["ok"] for s in secs),
+           "fetched": now_iso if any_ok else (prev_card or {}).get("fetched"), "sections": secs}
+    if card.get("link"):  # иконка заголовка — ссылка
+        out["link"] = card["link"]
+    return out
+
+
+def main():
+    with open(os.path.join(ROOT, "config.json"), encoding="utf-8") as f:
+        config = resolve(json.load(f))
+    tz = ZoneInfo(config.get("timezone", "Europe/Moscow"))
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    prev = load_previous()
+    cards = []
+    for card in config["cards"]:
+        if card.get("enabled", True) is False:
+            continue
+        if card.get("type") == "group":
+            cards.append(run_group(card, tz, prev.get(card["id"]), now_iso))
+            continue
+        out = run_section(card, tz, prev.get(card["id"]))
+        out["fetched"] = now_iso if out["ok"] else (prev.get(card["id"]) or {}).get("fetched")
+        cards.append(out)
+    data = {"updated": now_iso, "timezone": tz.key, "cards": cards}
+    pw = os.environ.get("DASH_PASSWORD")
+    if pw:
+        data = encrypt(data, pw)
+    else:
+        print("::warning::нет секрета DASH_PASSWORD: data.json публикуется без шифрования")
+    with open(os.path.join(ROOT, "data.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    print(f"готово, карточек: {len(cards)}")
+
+
+if __name__ == "__main__":
+    main()
+
+# КОНЕЦ ФАЙЛА collect.py

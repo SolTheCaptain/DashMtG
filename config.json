@@ -1,0 +1,80 @@
+{
+  "timezone": "Europe/Moscow",
+  "cards": [
+    {
+      "id": "quotes",
+      "title": "Котировки",
+      "type": "quotes",
+      "fiat": [
+        "USD",
+        "EUR"
+      ],
+      "chart": {
+        "days": 7,
+        "codes": [
+          "USD",
+          "EUR",
+          "BTC"
+        ]
+      }
+    },
+    {
+      "id": "people",
+      "title": "Люди",
+      "type": "group",
+      "link": "$USERS_SHEET_URL",
+      "sections": [
+        {
+          "id": "payments",
+          "title": "Платежи",
+          "type": "sheet_payments",
+          "secret": "USERS_CSV_URL",
+          "buttons": [
+            {
+              "label": "Sol",
+              "copy": "$PAY_SOL"
+            },
+            {
+              "label": "Настя",
+              "copy": "$PAY_NASTYA"
+            }
+          ]
+        },
+        {
+          "id": "order",
+          "title": "Срочные заказы",
+          "type": "sheet_list",
+          "col": "E",
+          "count": 5,
+          "secret": "USERS_CSV_URL"
+        }
+      ]
+    },
+    {
+      "id": "sales",
+      "title": "Sales",
+      "type": "static",
+      "lines": [
+        "Скоро."
+      ]
+    },
+    {
+      "id": "sets",
+      "title": "Сеты",
+      "type": "mtg_roadmap",
+      "count": 5,
+      "types": [
+        "core",
+        "expansion"
+      ]
+    },
+    {
+      "id": "bans",
+      "title": "Баны",
+      "type": "mtg_bans",
+      "refresh_days": 7,
+      "rev": 1
+    }
+  ],
+  "_end": "КОНЕЦ ФАЙЛА config.json"
+}

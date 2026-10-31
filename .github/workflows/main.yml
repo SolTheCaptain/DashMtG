@@ -1,0 +1,61 @@
+name: Обновление дашборда
+
+on:
+  schedule:
+    - cron: "40 8 * * *"
+    - cron: "0 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Собрать данные
+        run: python collect.py
+        env:
+          DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
+          USERS_CSV_URL: ${{ secrets.USERS_CSV_URL }}
+          USERS_SHEET_URL: ${{ secrets.USERS_SHEET_URL }}
+          PAY_SOL: ${{ secrets.PAY_SOL }}
+          PAY_NASTYA: ${{ secrets.PAY_NASTYA }}
+          PREV_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data.json
+
+      - name: Подготовить сайт
+        run: |
+          mkdir site
+          cp index.html data.json site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+# КОНЕЦ ФАЙЛА main.yml
