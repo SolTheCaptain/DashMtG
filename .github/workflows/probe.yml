@@ -1,0 +1,36 @@
+name: Проба TopDeck (временно)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проба
+        env:
+          TOPDECK_COOKIE: ${{ secrets.TOPDECK_COOKIE }}
+          TOPDECK_COOKIE_SAT: ${{ secrets.TOPDECK_COOKIE_SAT }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from urllib.request import Request, urlopen
+          for name, sec in (("Sol", "TOPDECK_COOKIE"), ("Sat", "TOPDECK_COOKIE_SAT")):
+              req = Request("https://topdeck.ru/messenger/",
+                            headers={"User-Agent": "Mozilla/5.0 (dashboard-collector)", "Cookie": os.environ[sec]})
+              with urlopen(req, timeout=60) as r:
+                  page = r.read().decode("utf-8", "replace")
+              # только счётчики и разметка значков, без текста переписки
+              tags = re.findall(r'<[^>]*(?:inbox|Inbox|notificationCount|_unread|unread)[^>]*>(?:\s*\d+\s*<)?', page)
+              tags = [re.sub(r'(?i)(csrf\w*|key|token|hash)=[0-9a-zA-Z]{8,}', r'\1=***', re.sub(r'\s+', ' ', t)) for t in tags]
+              print(f"::warning::{name}: bytes={len(page)} unreadItems={page.count('ipsDataItem_unread')} tags={len(tags)}")
+              uniq = []
+              for t in tags:
+                  k = re.sub(r'href="[^"]*"', 'href', t)[:300]
+                  if k not in uniq:
+                      uniq.append(k)
+              print(f"::warning::{name} tags: " + " | ".join(uniq[:12])[:3000])
+          PY
