@@ -393,6 +393,45 @@ def topdeck_trades(card, tz):
     return {"lines": lines, "items": items}
 
 
+def left_seconds(t):
+    """«1д 23ч», «5ч 10м», «40м» → секунды до окончания."""
+    mult = {"д": 86400, "ч": 3600, "м": 60, "с": 1}
+    return sum(int(n) * mult[u] for n, u in re.findall(r"(\d+)\s*([дчмс])", t))
+
+
+def topdeck_aucs(card, tz):
+    """Аукционы участника: сколько идёт сейчас и когда закончится ближайший.
+    TopDeck показывает только «осталось 1д 23ч», поэтому время окончания — время сбора + остаток (точность — до часа)."""
+    items, lines, fails = [], [], 0
+    now = datetime.now(tz)
+    for m in card.get("members", []):
+        it = {"label": m["label"], "url": TOPDECK + f"/apps/toptrade/member/{m['id']}/aucs" if m.get("id") else None}
+        if not m.get("id"):
+            it["state"] = "stub"
+        else:
+            try:
+                html = topdeck_get(f"/apps/toptrade/member/{m['id']}/aucs", m.get("cookie", "TOPDECK_COOKIE"))
+                left = [(left_seconds(x), x) for x in re.findall(r'js-time-left"[^>]*>([^<]*)', html)]
+                left = sorted(x for x in left if x[0] > 0)
+                it["state"] = "shown" if left else "stub"
+                info = str(len(left))
+                if left:
+                    sec, raw = left[0]
+                    end = now + timedelta(seconds=sec)
+                    # остаток без минут («1д 23ч») — время окончания известно с точностью до часа
+                    info += f" до {end:%d.%m %H:%M}" if re.search(r"\d\s*м", raw) else f" до {end:%d.%m ~%H}:00"
+                it["info"] = info
+            except Exception as e:
+                fails += 1
+                print(f"::warning::topdeck аукционы {m['label']}: {e}")
+                it["state"] = "error"
+        items.append(it)
+        lines.append(f"{m['label']} — {it.get('info', '—')}")
+    if fails and fails == sum(1 for m in card.get("members", []) if m.get("id")):
+        raise RuntimeError("не удалось получить аукционы ни одного участника")
+    return {"lines": lines, "items": items}
+
+
 # ---------- реестр типов блоков ----------
 
 HANDLERS = {
@@ -401,6 +440,7 @@ HANDLERS = {
     "sheet_list": sheet_list,
     "sheet_table": sheet_table,
     "topdeck_trades": topdeck_trades,
+    "topdeck_aucs": topdeck_aucs,
     "mtg_roadmap": mtg_roadmap,
     "mtg_bans": mtg_bans,
 }

@@ -72,6 +72,22 @@
               "topic": 355026
             }
           ]
+        },
+        {
+          "id": "auctions",
+          "title": "Аукционы",
+          "type": "topdeck_aucs",
+          "members": [
+            {
+              "label": "Sol",
+              "id": 96
+            },
+            {
+              "label": "Настя",
+              "id": 101,
+              "cookie": "TOPDECK_COOKIE_SAT"
+            }
+          ]
         }
       ]
     },
