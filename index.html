@@ -83,9 +83,10 @@ main {
 /* чёрная обводка букв; давно не обновлённая тема — буквы красные */
 .mx .shown, .mx .hidden { text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 2px #000; }
 .mx .old { color: var(--down); }
-.mx .split { display: flex; padding: 0; }
-.mx .split .l { flex: 1; min-width: 0; padding: 5px 2px; overflow: hidden; text-overflow: ellipsis; }
-.mx .split .r { flex: none; width: 2.2em; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--gold); }
+/* кнопка со звездой: дата по центру всей кнопки, звезда прилеплена справа поверх */
+.mx .split { position: relative; padding: 0; }
+.mx .split .l { display: block; padding: 5px 2.4em; overflow: hidden; text-overflow: ellipsis; }
+.mx .split .r { position: absolute; top: 0; right: 0; bottom: 0; width: 2.2em; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--gold); }
 .mx .r.can { background: linear-gradient(180deg, #ff7b88, #e0414f); color: #fff; }
 .mx .r.wait { background: linear-gradient(180deg, #04b9d4, #177ad2); color: var(--gold); }
 .mx .stub { color: var(--muted); border-color: var(--line); background: #ffffff08; }
